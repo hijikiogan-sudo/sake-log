@@ -45,10 +45,12 @@
   }
   function exportJson(){if(!state)throw Error('保存原文を退避してください');download('缶ログ_backup_'+B.currentDay(state)+'_'+Date.now()+'.json',B.serialize(state));}
   function productLabel(p){return p.productName+' / '+p.volumeMl+'mL / '+p.alcoholPercent+'%';}
-  function productOptions(first='銘柄を選択'){return '<option value="">'+first+'</option>'+state.products.map(p=>`<option value="${esc(p.id)}">${esc(productLabel(p))}</option>`).join('');}
-  function pick(pid){if(!state.products.some(p=>p.id===pid))return;selectedId=pid;renderHome();close('productPicker');}
+  function availableProducts(){return state.products.filter(p=>!p.archived);}
+  function productOptions(first='銘柄を選択'){return '<option value="">'+first+'</option>'+availableProducts().map(p=>`<option value="${esc(p.id)}">${esc(productLabel(p))}</option>`).join('');}
+  function pick(pid){if(!availableProducts().some(p=>p.id===pid))return;selectedId=pid;renderHome();close('productPicker');}
   function renderPicker(){
-    $('pickerProducts').innerHTML=state.products.length?state.products.map(p=>`<button type="button" data-pick="${esc(p.id)}"><strong>${esc(p.productName)}</strong><small>${p.volumeMl}mL / ${p.alcoholPercent}%${p.id===selectedId?' · 選択中':''}</small></button>`).join(''):'<p class="empty">まだ登録されたお酒がありません。<br>バーコードか手動で登録しましょう。</p>';
+    const products=availableProducts();
+    $('pickerProducts').innerHTML=products.length?products.map(p=>`<button type="button" data-pick="${esc(p.id)}"><strong>${esc(p.productName)}</strong><small>${p.volumeMl}mL / ${p.alcoholPercent}%${p.id===selectedId?' · 選択中':''}</small></button>`).join(''):'<p class="empty">選べるお酒がありません。<br>バーコードか手動で登録できます。削除した銘柄は設定から戻せます。</p>';
   }
   function timeline(drinks){
     return drinks.length?[...drinks].sort((a,b)=>b.startedAt.localeCompare(a.startedAt)).map(d=>`<button type="button" class="logEntry" data-edit="${esc(d.id)}"><span class="logTime">${esc(stamp(d.startedAt))}</span><span class="logInfo"><strong>${esc(d.snapshot.productName)}</strong><small>${d.snapshot.volumeMl}mL · ${d.snapshot.alcoholPercent}% · 1本 · ${decimal(d.pureAlcoholGrams)}g</small><small>${d.purchasePriceYen===null?'価格未入力':money(d.purchasePriceYen)}${d.allocation==='included'?' · 旧本数の内訳':''}</small></span><span class="chevron" aria-hidden="true">›</span></button>`).join(''):'<p class="empty">まだ記録はありません。<br>飲み始めに、ひとタップ。</p>';
@@ -60,14 +62,14 @@
   }
   function renderHome(){
     const day=B.currentDay(state),a=B.aggregate(state,k=>k===day),active=B.activeSession(state);
-    const chosen=state.products.find(p=>p.id===selectedId);
+    const chosen=availableProducts().find(p=>p.id===selectedId);
     $('selectedName').textContent=chosen?chosen.productName:'いつものお酒を選びましょう';
     $('selectedFacts').textContent=chosen?chosen.volumeMl+'mL / '+chosen.alcoholPercent+'%':'まずは銘柄を登録してください';
     $('sessionBadge').textContent=active?'飲酒中':'飲酒前';
     $('sessionCount').hidden=!active;$('sessionCountNumber').textContent=active?B.sessionSummary(state,active.id).count:'0';
     $('startBtn').hidden=!!active;$('addBtn').hidden=!active;$('finishBtn').hidden=!active;
     const last=active?state.drinks.filter(d=>d.sessionId===active.id).at(-1):null;
-    $('addBtn').textContent=last&&selectedId!==last.productId?'この銘柄を1本追加':'＋1本';
+    $('addBtn').textContent=!chosen?'銘柄を選んで1本追加':last&&selectedId!==last.productId?'この銘柄を1本追加':'＋1本';
     $('actionHint').textContent=active?'新しい缶を飲み始めたら、押してください':'スタートで、選んだ銘柄の1本目を記録';
     for(const id of ['startBtn','addBtn'])$(id).disabled=blocked||Date.now()<busyUntil;
     $('todayDate').textContent=new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',month:'long',day:'numeric',weekday:'short'}).format(new Date());
@@ -112,14 +114,18 @@
     $('calendarDetail').innerHTML=selectedDay?`<h3 style="margin-top:14px">${selectedDay} · ${B.aggregate(state,k=>k===selectedDay).count}本</h3>`+timeline(state.drinks.filter(d=>B.recordDay(d)===selectedDay)):'';
   }
   function renderSettings(){
-    $('productList').innerHTML=state.products.length?state.products.map(p=>`<div class="productRow"><div><strong>${esc(p.productName)}</strong><small>${p.volumeMl}mL / ${p.alcoholPercent}%<br>参考単価 ${p.referencePriceYen===null?'未入力':money(p.referencePriceYen)}</small></div><button data-product-edit="${esc(p.id)}" class="write">編集</button></div>`).join(''):'<p class="hint">まずはいつものお酒を登録しましょう。</p>';
+    const products=availableProducts(),archived=state.products.filter(p=>p.archived);
+    $('productList').innerHTML=products.length?products.map(p=>`<div class="productRow"><div><strong>${esc(p.productName)}</strong><small>${p.volumeMl}mL / ${p.alcoholPercent}%<br>参考単価 ${p.referencePriceYen===null?'未入力':money(p.referencePriceYen)}</small></div><div class="productActions"><button data-product-edit="${esc(p.id)}" class="write">編集</button><button data-product-delete="${esc(p.id)}" class="write danger" aria-label="${esc(productLabel(p))}を一覧から削除">削除</button></div></div>`).join(''):'<p class="hint">選べる銘柄はありません。新しく登録するか、削除した銘柄を元に戻せます。</p>';
+    $('archivedProducts').hidden=!archived.length;
+    $('archivedProductsTitle').textContent='削除した銘柄（'+archived.length+'件）';
+    $('archivedProductList').innerHTML=archived.map(p=>`<div class="productRow"><div><strong>${esc(p.productName)}</strong><small>${p.volumeMl}mL / ${p.alcoholPercent}%</small></div><button data-product-restore="${esc(p.id)}" class="write">元に戻す</button></div>`).join('');
     $('metabolismRate').value=state.settings.metabolismGramsPerHour;
     $('dayStartHour').value=String(state.settings.dayStartHour);
     for(const k of ['baseline','target','price'])$(k).value=state.settings[k];
   }
   function render(){
     if(!state)return;
-    if(!state.products.some(p=>p.id===selectedId))selectedId=B.recentProducts(state)[0]?.id||state.products[0]?.id||null;
+    if(!availableProducts().some(p=>p.id===selectedId))selectedId=B.recentProducts(state)[0]?.id||availableProducts()[0]?.id||null;
     renderHome();renderHistory();renderAnalysis();renderSettings();renderPicker();
     for(const el of document.querySelectorAll('.write'))if(blocked)el.disabled=true;
   }
@@ -178,6 +184,8 @@
       if(button.dataset.pick)pick(button.dataset.pick);
       if(button.dataset.edit)openEdit(button.dataset.edit);
       if(button.dataset.productEdit)openProduct(state.products.find(p=>p.id===button.dataset.productEdit),true);
+      if(button.dataset.productDelete)commit(B.archiveProduct(state,button.dataset.productDelete),'銘柄を一覧から削除しました。過去の飲酒記録は残っています。「削除した銘柄」から元に戻せます。','銘柄を一覧から削除しました');
+      if(button.dataset.productRestore)commit(B.archiveProduct(state,button.dataset.productRestore,false),'銘柄を一覧に戻しました。');
       if(button.dataset.session)openSession(button.dataset.session);
       if(button.dataset.day){selectedDay=button.dataset.day;renderCalendar();}
       if(button.dataset.count){$('countDay').value=button.dataset.count;$('dayCount').value=B.aggregate(state,k=>k===button.dataset.count).count;$('countForm').closest('details').open=true;$('countForm').scrollIntoView({block:'center'});}
@@ -253,7 +261,7 @@
   });
   for(let h=0;h<=23;h++){const option=document.createElement('option');option.value=h;option.textContent=h+'時';$('dayStartHour').append(option);}
   guard(()=>{
-    if(!B||!S||B.empty().version!==5)throw Error('アプリの更新を読み込めません。再読み込みしてください。記録は変更していません。');
+    if(!B||!S||B.empty().version!==6)throw Error('アプリの更新を読み込めません。再読み込みしてください。記録は変更していません。');
     repo=S.open(localStorage);state=repo.get();blocked=repo.hasConflict();
     cursor=B.currentDay(state).slice(0,7);$('countDay').value=B.currentDay(state);$('dayCount').value=B.aggregate(state,k=>k===B.currentDay(state)).count;
     const cat=window.BeerCatalog;

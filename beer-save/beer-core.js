@@ -52,7 +52,7 @@
     }
     return r;
   }
-  function empty() { return {version:5,settings:clone(DEFAULTS),countOnlyRecords:{},products:[],drinks:[],sessions:[],legacyRaw:null,originLegacyRaw:null,cameraPreferences:{autoSaveKnownBarcode:true}}; }
+  function empty() { return {version:6,settings:clone(DEFAULTS),countOnlyRecords:{},products:[],drinks:[],sessions:[],legacyRaw:null,originLegacyRaw:null,cameraPreferences:{autoSaveKnownBarcode:true}}; }
   function migrate(raw) {
     if (typeof raw !== 'string') fail('旧データがありません');
     const old = JSON.parse(raw);
@@ -78,8 +78,8 @@
   function pure(p) {return p.volumeMl*p.alcoholPercent/100*0.8;}
   function id() {return (typeof crypto!=='undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)+'-'+Math.random().toString(36).slice(2);}
   function canonical(value) {
-    if (!object(value) || ![2,3,4,5].includes(value.version) || !object(value.settings) || !Array.isArray(value.drinks) || !Array.isArray(value.products)) fail('対応していないバックアップ形式です');
-    const r={version:5,settings:settings(value.settings),countOnlyRecords:counts(value.countOnlyRecords),products:[],drinks:[],sessions:[],legacyRaw:null,originLegacyRaw:null,cameraPreferences:{autoSaveKnownBarcode:true}};
+    if (!object(value) || ![2,3,4,5,6].includes(value.version) || !object(value.settings) || !Array.isArray(value.drinks) || !Array.isArray(value.products)) fail('対応していないバックアップ形式です');
+    const r={version:6,settings:settings(value.settings),countOnlyRecords:counts(value.countOnlyRecords),products:[],drinks:[],sessions:[],legacyRaw:null,originLegacyRaw:null,cameraPreferences:{autoSaveKnownBarcode:true}};
     if(value.cameraPreferences!==undefined){if(!object(value.cameraPreferences)||typeof value.cameraPreferences.autoSaveKnownBarcode!=='boolean')fail('撮影設定が不正です');r.cameraPreferences={autoSaveKnownBarcode:value.cameraPreferences.autoSaveKnownBarcode};}
     if (value.legacyRaw!==null && value.legacyRaw!==undefined) {migrate(value.legacyRaw);r.legacyRaw=value.legacyRaw;}
     if(value.originLegacyRaw!==null && value.originLegacyRaw!==undefined){migrate(value.originLegacyRaw);r.originLegacyRaw=value.originLegacyRaw;}
@@ -100,7 +100,8 @@
     const productIds=new Set();
     for(const p of value.products) {
       const pid=text(p.id,'商品ID'); if(productIds.has(pid)) fail('商品IDが重複しています');productIds.add(pid);
-      r.products.push({id:pid,...product(p),referencePriceYen:number(p.referencePriceYen,'参考単価',0,1e9,true)});
+      if(p.archived!==undefined&&typeof p.archived!=='boolean')fail('銘柄の削除状態が不正です');
+      r.products.push({id:pid,...product(p),referencePriceYen:number(p.referencePriceYen,'参考単価',0,1e9,true),archived:p.archived??false});
     }
     const drinkIds=new Set(), included={};
     for(const d of value.drinks) {
@@ -206,15 +207,23 @@
     // continue to identify the original size/ABV, as do drink snapshots.
     const existing=original&&fingerprint(original)===fingerprint(p)?original:next.products.find(x=>fingerprint(x)===fingerprint(p));
     const referencePriceYen=number(input.referencePriceYen,'参考単価',0,1e9,true);
-    if(existing)Object.assign(existing,p,{referencePriceYen});
-    else next.products.push({id:id(),...p,referencePriceYen});
+    if(existing)Object.assign(existing,p,{referencePriceYen,archived:false});
+    else next.products.push({id:id(),...p,referencePriceYen,archived:false});
     return canonical(next);
+  }
+  function archiveProduct(state,pid,archived=true){
+    if(typeof archived!=='boolean')fail('銘柄の削除状態が不正です');
+    const next=canonical(state),p=next.products.find(x=>x.id===pid);
+    if(!p)fail('登録商品が見つかりません');
+    // Keep the referenced master and every drink snapshot for history/backup.
+    p.archived=archived;return canonical(next);
   }
   function recentProducts(state,limit=3){
     const recent=[],seen=new Set();
     const sorted=state.drinks.map((d,i)=>({d,i})).sort((a,b)=>Date.parse(b.d.startedAt)-Date.parse(a.d.startedAt)||b.i-a.i);
     for(const {d} of sorted){
       const p=state.products.find(p=>p.id===d.productId);
+      if(p.archived)continue;
       const key=p.janCode?JSON.stringify([p.janCode,p.volumeMl,p.alcoholPercent,p.revision]):fingerprint(p);
       if(!seen.has(key)){seen.add(key);recent.push(clone(p));}
     }
@@ -223,6 +232,7 @@
   function addFromProduct(state,pid,when,options={}){
     if(options.id&&state.drinks.some(d=>d.id===options.id))return canonical(state);
     const p=state.products.find(x=>x.id===pid);if(!p)fail('先に銘柄を選んでください');
+    if(p.archived)fail('この銘柄は一覧から削除されています。設定から元に戻すか、別の銘柄を選んでください');
     if(options.start&&activeSession(state))fail('今回の飲酒はすでに始まっています');
     if(!options.start&&!activeSession(state))fail('先に飲酒スタートを押してください');
     return add(state,{...p,startedAt:when,purchasePriceYen:null,sessionMode:'current'}, {...options,productId:pid,allowDuplicate:true});
@@ -280,7 +290,7 @@
   function decode(raw) {
     if(typeof raw!=='string' || raw.length>10*1024*1024)fail('バックアップは10MB以下にしてください');
     const value=JSON.parse(raw);
-    return [2,3,4,5].includes(value.version) ? canonical(value) : migrate(raw);
+    return [2,3,4,5,6].includes(value.version) ? canonical(value) : migrate(raw);
   }
   function merge(state,incoming) {
     const a=canonical(state),b=canonical(incoming);
@@ -322,5 +332,5 @@
       }
     };
   }
-  return {DEFAULTS,normalizeJan,empty,migrate,canonical,product,fingerprint,pure,dayKey,recordDay,currentDay,activeSession,sessionSummary,estimate,saveProduct,recentProducts,addFromProduct,editSession,editDrink,addPast,validDay,add,aggregate,setDailyTotal,remove,finish,decode,merge,serialize,csv,repository};
+  return {DEFAULTS,normalizeJan,empty,migrate,canonical,product,fingerprint,pure,dayKey,recordDay,currentDay,activeSession,sessionSummary,estimate,saveProduct,archiveProduct,recentProducts,addFromProduct,editSession,editDrink,addPast,validDay,add,aggregate,setDailyTotal,remove,finish,decode,merge,serialize,csv,repository};
 });

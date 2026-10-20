@@ -7,14 +7,14 @@
 <title>缶ログ｜缶のお酒を、かんたん記録。</title>
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./kanlog.css?v=kanlog-20261020-import-fix">
-<script defer src="./beer-catalog.js?v=kanlog-20261020-import-fix"></script>
-<script defer src="./beer-core.js?v=kanlog-20261020-import-fix"></script>
-<script defer src="./beer-store.js?v=kanlog-20261020-import-fix"></script>
-<script defer src="./beer-recognition.js?v=kanlog-20261020-import-fix"></script>
-<script defer src="./beer-live-barcode.js?v=kanlog-20261020-import-fix"></script>
-<script defer src="./beer-camera-ui.js?v=kanlog-20261020-import-fix"></script>
-<script defer src="./kanlog-app.js?v=kanlog-20261020-import-fix"></script>
+<link rel="stylesheet" href="./kanlog.css?v=kanlog-20261020-product-delete">
+<script defer src="./beer-catalog.js?v=kanlog-20261020-product-delete"></script>
+<script defer src="./beer-core.js?v=kanlog-20261020-product-delete"></script>
+<script defer src="./beer-store.js?v=kanlog-20261020-product-delete"></script>
+<script defer src="./beer-recognition.js?v=kanlog-20261020-product-delete"></script>
+<script defer src="./beer-live-barcode.js?v=kanlog-20261020-product-delete"></script>
+<script defer src="./beer-camera-ui.js?v=kanlog-20261020-product-delete"></script>
+<script defer src="./kanlog-app.js?v=kanlog-20261020-product-delete"></script>
 </head>
 <body>
 <main class="app">
@@ -56,7 +56,7 @@
 </section>
 <section id="settingsView" aria-label="設定" hidden>
 <h2 class="pageTitle">設定</h2><p class="hint">銘柄とデータを、自分のペースで。</p>
-<div class="card"><div class="row"><h2>登録済みのお酒</h2><button id="newProduct" class="textButton write">＋ 登録</button></div><div id="productList"></div><p class="hint">参考単価を変更しても、過去の記録の実際の価格は変わりません。</p><details><summary>商品辞書について</summary><p id="beerCatalogInfo" class="hint"></p></details></div>
+<div class="card"><div class="row"><h2>登録済みのお酒</h2><button id="newProduct" class="textButton write">＋ 登録</button></div><div id="productList"></div><p class="hint">一覧から削除しても、過去の飲酒記録・金額は残ります。</p><details id="archivedProducts" hidden><summary id="archivedProductsTitle">削除した銘柄</summary><p class="hint">「元に戻す」で再び選べるようになります。</p><div id="archivedProductList"></div></details><p class="hint">参考単価を変更しても、過去の記録の実際の価格は変わりません。</p><details><summary>商品辞書について</summary><p id="beerCatalogInfo" class="hint"></p></details></div>
 <div class="card"><h2>分解時間の計算条件</h2><p class="hint">既定値は純アルコール10gにつき約2.5時間（4g/時）。個人の分解能力を測定した値ではありません。</p><form id="estimateForm"><label for="metabolismRate">1時間あたりの推定分解量（g）</label><input id="metabolismRate" type="number" min="1" max="20" step="0.1" required><button class="primary write" type="submit">計算条件を保存</button></form><details><summary>推定方法と限界</summary><p class="hint">各缶の飲み始めに純アルコール量を加え、次の缶までの時間で設定量を差し引きます。飲んでいない時間の分解能力を繰り越しません。終了日時がある場合、推定終了はその時刻より前にはしません。吸収速度・食事・体格等はモデル化していません。同じセッションの詳細記録のみが対象で、本数だけの記録は量を推測しません。</p><p class="hint">個人差が大きく、運転できる時刻やアルコールの消失を保証しません。<a href="https://izonsho.mhlw.go.jp/alcoholwacth/" target="_blank" rel="noopener noreferrer">参考：厚生労働省 アルコールウォッチ</a></p></details></div>
 <details class="card"><summary>1日の区切り・以前の節約設定</summary><form id="dayBoundaryForm"><label for="dayStartHour">集計日の開始時刻（日本時間）</label><select id="dayStartHour"></select><p class="hint">変更は新しい記録に適用し、過去の集計日は保持します。</p><button type="submit" class="primary write">区切り時刻を保存</button></form><form id="settingsForm"><div class="grid"><div><label for="baseline">基準本数 / 日</label><input id="baseline" type="number" min="1" max="12" required></div><div><label for="target">目標本数 / 日</label><input id="target" type="number" min="0" max="12" required></div></div><label for="price">基準価格 / 本（円）</label><input id="price" type="number" min="0" step="any" required><button type="submit" class="primary write">節約設定を保存</button></form></details>
 <div class="card"><h2>バックアップと復元</h2><p class="hint">記録はこの端末・ブラウザ内に保存します。JSONは復元用、CSVは表計算用です。端末の外にも保管してください。</p><div class="grid"><button id="exportJson">JSONを保存</button><button id="exportCsv">CSVを保存</button></div><button id="exportRecovery" class="wide subtle" style="margin-top:10px">直前の回復用JSON</button><label for="importFile">バックアップから読み込む</label><input id="importFile" type="file" accept=".json,application/json"><details><summary>JSONを貼り付けて読み込む</summary><label for="importText">バックアップJSON</label><textarea id="importText"></textarea><button id="checkImport" class="wide">内容を確認</button></details><div id="importSummary"></div><div id="importActions" class="grid" hidden><button id="mergeImport" class="write">重複IDを除いて統合</button><button id="replaceImport" class="write">この内容に復元</button></div><details><summary>旧データ・原文のバックアップ</summary><p class="hint">旧名称の記録・旧保存キーは削除しません。</p><button id="readLegacy">旧記録を確認</button><button id="exportLegacy">旧JSONを保存</button><button id="exportRaw">現在の保存原文を退避</button></details></div>
