@@ -19,6 +19,8 @@
   let duplicatePair=null,noticeDismissed=false,noticeTimer=null;
   let imported=null,undo=null,blocked=false,busyUntil=0,currentView='home',cursor=null,selectedDay=null;
   function renderFeedback(){
+    const slot=$(currentView==='home'?'homeFeedbackSlot':'globalFeedbackSlot');
+    if($('feedback').parentElement!==slot)slot.append($('feedback'));
     $('undoBar').hidden=!undo||noticeDismissed;
     if(undo)$('undoText').textContent=undo.label;
     $('feedback').hidden=noticeDismissed||($('status').hidden&&$('undoBar').hidden);
@@ -26,6 +28,7 @@
   function note(message,error=false){
     clearTimeout(noticeTimer);noticeDismissed=false;
     $('status').hidden=false;$('status').textContent=message;$('status').classList.toggle('error',error);renderFeedback();
+    if(error||currentView!=='home')$('feedback').scrollIntoView({block:'nearest',behavior:'instant'});
     if(!error)noticeTimer=setTimeout(()=>{$('status').hidden=true;renderFeedback();},4500);
   }
   function guard(fn,errorId=null){
@@ -50,6 +53,7 @@
     currentView=view;
     for(const v of ['home','history','analysis','settings'])$(v+'View').hidden=v!==view;
     for(const b of document.querySelectorAll('nav button'))b.setAttribute('aria-selected',String(b.dataset.view===view));
+    renderFeedback();
     window.scrollTo({top:0,behavior:'instant'});
   }
   function download(name,content,type='application/json'){

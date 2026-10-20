@@ -7,19 +7,20 @@
 <title>缶ログ｜缶のお酒を、かんたん記録。</title>
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./kanlog.css?v=kanlog-20261020-polish">
-<script defer src="./beer-catalog.js?v=kanlog-20261020-polish"></script>
-<script defer src="./beer-core.js?v=kanlog-20261020-polish"></script>
-<script defer src="./beer-store.js?v=kanlog-20261020-polish"></script>
-<script defer src="./beer-recognition.js?v=kanlog-20261020-polish"></script>
-<script defer src="./beer-live-barcode.js?v=kanlog-20261020-polish"></script>
-<script defer src="./beer-camera-ui.js?v=kanlog-20261020-polish"></script>
-<script defer src="./kanlog-maintenance.js?v=kanlog-20261020-polish"></script>
-<script defer src="./kanlog-app.js?v=kanlog-20261020-polish"></script>
+<link rel="stylesheet" href="./kanlog.css?v=kanlog-20261020-feedback">
+<script defer src="./beer-catalog.js?v=kanlog-20261020-feedback"></script>
+<script defer src="./beer-core.js?v=kanlog-20261020-feedback"></script>
+<script defer src="./beer-store.js?v=kanlog-20261020-feedback"></script>
+<script defer src="./beer-recognition.js?v=kanlog-20261020-feedback"></script>
+<script defer src="./beer-live-barcode.js?v=kanlog-20261020-feedback"></script>
+<script defer src="./beer-camera-ui.js?v=kanlog-20261020-feedback"></script>
+<script defer src="./kanlog-maintenance.js?v=kanlog-20261020-feedback"></script>
+<script defer src="./kanlog-app.js?v=kanlog-20261020-feedback"></script>
 </head>
 <body>
 <main class="app">
 <header class="brand"><div class="brandMain"><img src="./icon.svg" alt="" width="43" height="43"><div><h1>缶ログ</h1><p class="hint">缶のお酒を、かんたん記録。</p></div></div><div class="dateMark" id="todayDate"></div></header>
+<div id="globalFeedbackSlot"></div>
 <noscript><p class="notice">記録するにはJavaScriptを有効にしてください。</p></noscript>
 
 <section id="homeView" aria-label="ホーム">
@@ -32,6 +33,7 @@
 <button id="addBtn" class="mainAction write" hidden>＋1本</button>
 <p class="actionHint" id="actionHint">スタートで、選んだ銘柄の1本目を記録</p>
 <button id="finishBtn" class="finishAction write" hidden>飲酒終わり</button>
+<div id="homeFeedbackSlot" class="homeFeedbackSlot" aria-label="記録の保存結果"></div>
 </div>
 
 <div class="usual"><div class="sectionHeading"><h2>いつものお酒</h2><button id="allProducts" class="textButton">登録済み一覧 ›</button></div><div id="recentProducts" class="recentGrid"></div><div class="row" style="margin-top:12px"><button id="beerLiveButton" class="textButton">▥ バーコードで登録</button><button id="manualProduct" class="textButton">＋ 手動で登録</button></div></div>
