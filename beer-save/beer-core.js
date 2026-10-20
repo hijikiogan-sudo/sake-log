@@ -205,7 +205,7 @@
     if(pid&&!original)fail('登録商品が見つかりません');
     // A changed formulation is a separate selectable product. Historical IDs
     // continue to identify the original size/ABV, as do drink snapshots.
-    const existing=original&&fingerprint(original)===fingerprint(p)?original:next.products.find(x=>fingerprint(x)===fingerprint(p));
+    const existing=original&&fingerprint(original)===fingerprint(p)?original:next.products.find(x=>!x.archived&&fingerprint(x)===fingerprint(p))||next.products.find(x=>fingerprint(x)===fingerprint(p));
     const referencePriceYen=number(input.referencePriceYen,'参考単価',0,1e9,true);
     if(existing)Object.assign(existing,p,{referencePriceYen,archived:false});
     else next.products.push({id:id(),...p,referencePriceYen,archived:false});
@@ -217,6 +217,31 @@
     if(!p)fail('登録商品が見つかりません');
     // Keep the referenced master and every drink snapshot for history/backup.
     p.archived=archived;return canonical(next);
+  }
+  function canConsolidateProducts(a,b){
+    const norm=value=>String(value??'').normalize('NFKC').toLowerCase().replace(/\s/g,'');
+    if(a.id===b.id||a.archived||b.archived||a.volumeMl!==b.volumeMl||a.alcoholPercent!==b.alcoholPercent)return false;
+    if(a.janCode&&b.janCode&&a.janCode!==b.janCode)return false;
+    for(const key of ['manufacturer','brand','flavor','revision'])if(a[key]&&b[key]&&norm(a[key])!==norm(b[key]))return false;
+    if(a.category!==b.category&&a.category!=='other'&&b.category!=='other')return false;
+    return norm(a.productName)===norm(b.productName)||!!(a.janCode&&a.janCode===b.janCode);
+  }
+  function duplicateProductCandidates(state,limit=20){
+    const products=state.products.filter(p=>!p.archived),latest=new Map(),pairs=[];
+    for(const d of state.drinks)latest.set(d.productId,Math.max(latest.get(d.productId)||0,Date.parse(d.startedAt)));
+    for(let i=0;i<products.length;i++)for(let j=i+1;j<products.length;j++){
+      const a=products[i],b=products[j];if(!canConsolidateProducts(a,b))continue;
+      pairs.push({products:[clone(a),clone(b)],preferredId:(latest.get(b.id)||0)>(latest.get(a.id)||0)?b.id:a.id});
+      if(pairs.length>=limit)return pairs;
+    }
+    return pairs;
+  }
+  function consolidateProducts(state,keepId,otherId){
+    const next=canonical(state),keep=next.products.find(p=>p.id===keepId),other=next.products.find(p=>p.id===otherId);
+    if(!keep||!other||!canConsolidateProducts(keep,other))fail('容量・度数・JANなどが異なるため、この2つはまとめられません');
+    // Only remove the duplicate from future choices. Historical references,
+    // snapshots, prices and original masters remain intact and reversible.
+    other.archived=true;return canonical(next);
   }
   function recentProducts(state,limit=3){
     const recent=[],seen=new Set();
@@ -269,6 +294,16 @@
       s.updatedAt=new Date().toISOString();
     }
     d.updatedAt=new Date().toISOString();return canonical(next);
+  }
+  function setDrinkPrices(state,ids,price){
+    number(price,'1本あたりの購入価格',0,1e9);
+    if(!Array.isArray(ids)||!ids.length||new Set(ids).size!==ids.length)fail('価格を入力する記録を重複なく選んでください');
+    const next=canonical(state),records=ids.map(did=>next.drinks.find(d=>d.id===did));
+    if(records.some(d=>!d))fail('記録が変わりました。対象を選び直してください');
+    if(records.some(d=>d.purchasePriceYen!==null))fail('価格が入力済みの記録が含まれています。履歴から個別に編集してください');
+    const updatedAt=new Date().toISOString();
+    for(const d of records){d.purchasePriceYen=price;d.updatedAt=updatedAt;}
+    return canonical(next);
   }
   function addPast(state,input,sid=null){
     let next=add(state,input,{sessionMode:'none',allowDuplicate:true,...(state.products.some(p=>p.id===input.id)?{productId:input.id}:{})});
@@ -332,5 +367,5 @@
       }
     };
   }
-  return {DEFAULTS,normalizeJan,empty,migrate,canonical,product,fingerprint,pure,dayKey,recordDay,currentDay,activeSession,sessionSummary,estimate,saveProduct,archiveProduct,recentProducts,addFromProduct,editSession,editDrink,addPast,validDay,add,aggregate,setDailyTotal,remove,finish,decode,merge,serialize,csv,repository};
+  return {DEFAULTS,normalizeJan,empty,migrate,canonical,product,fingerprint,pure,dayKey,recordDay,currentDay,activeSession,sessionSummary,estimate,saveProduct,archiveProduct,canConsolidateProducts,duplicateProductCandidates,consolidateProducts,recentProducts,addFromProduct,editSession,editDrink,setDrinkPrices,addPast,validDay,add,aggregate,setDailyTotal,remove,finish,decode,merge,serialize,csv,repository};
 });

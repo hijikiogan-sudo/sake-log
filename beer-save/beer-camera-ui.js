@@ -20,7 +20,7 @@
     function close(){token++;scanner.stop();clear();if(dialog.open)dialog.close();$('beerLivePreview').width=1;$('beerLivePreview').height=1;}
     function detected(code){
       try{
-        pending=lookup(code,getState().products,catalog);selected=pending.candidates.length===1?pending.candidates[0]:null;
+        pending=lookup(code,getState().products.filter(p=>!p.archived),catalog);selected=pending.candidates.length===1?pending.candidates[0]:null;
         $('beerLiveResult').hidden=false;$('beerLiveStatus').textContent='バーコードを読み取りました';$('beerLiveCode').textContent='JAN '+pending.janCode;
         $('beerLiveChoices').replaceChildren();
         if(selected){showProduct(selected);}else{
