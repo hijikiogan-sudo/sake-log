@@ -12,7 +12,9 @@
   function open(storage,key=KEY,oldKey=OLD_KEY){
     const repository=B.repository(storage,key),physicalOld=storage.getItem(oldKey);
     let state=storage.getItem(key)===null && physicalOld!==null?B.migrate(physicalOld):repository.get();
-    const marker=state.originLegacyRaw??state.legacyRaw;
+    // canonical() handles old backups with no binding. Preserve explicit null:
+    // legacyRaw is an archive and may belong to a different site's storage.
+    const marker=state.originLegacyRaw;
     let conflict=marker!==physicalOld && storage.getItem(key)!==null;
     function ensureFresh(){
       if(conflict || storage.getItem(oldKey)!==physicalOld)throw Error('以前の画面から旧記録が変更されています。旧記録と現在のJSONを両方保存し、内容を確認してから移行してください。自動で上書きしません。');

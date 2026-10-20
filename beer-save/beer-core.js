@@ -83,6 +83,10 @@
     if(value.cameraPreferences!==undefined){if(!object(value.cameraPreferences)||typeof value.cameraPreferences.autoSaveKnownBarcode!=='boolean')fail('撮影設定が不正です');r.cameraPreferences={autoSaveKnownBarcode:value.cameraPreferences.autoSaveKnownBarcode};}
     if (value.legacyRaw!==null && value.legacyRaw!==undefined) {migrate(value.legacyRaw);r.legacyRaw=value.legacyRaw;}
     if(value.originLegacyRaw!==null && value.originLegacyRaw!==undefined){migrate(value.originLegacyRaw);r.originLegacyRaw=value.originLegacyRaw;}
+    // Older backups without a binding used legacyRaw as their local baseline.
+    // An explicit null means this site's v1 key was absent at import, even when
+    // the backup retains a different site's legacyRaw for recovery.
+    if(!Object.hasOwn(value,'originLegacyRaw'))r.originLegacyRaw=r.legacyRaw;
     if(value.version>=4&&!Array.isArray(value.sessions))fail('飲酒セッションが不正です');
     const sessionIds=new Set();
     for(const s of (value.version>=4?value.sessions:[])){
