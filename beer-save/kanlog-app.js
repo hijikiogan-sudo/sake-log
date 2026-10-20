@@ -144,6 +144,9 @@
     renderFeedback();
   }
   function renderHistory(){
+    const missing=state.drinks.filter(d=>d.purchasePriceYen===null).length;
+    $('missingPriceCount').textContent=missing?'価格未入力の記録が'+missing+'本あります。':'価格未入力の記録はありません。';
+    $('bulkPrices').disabled=blocked||!missing;
     const days=[...new Set([...Object.keys(state.countOnlyRecords),...state.drinks.map(B.recordDay)])].sort().reverse();
     $('history').innerHTML=days.length?days.map(day=>{const a=B.aggregate(state,k=>k===day);return `<div class="historyDay"><div class="row"><h3>${esc(day)} · ${a.count}本</h3><button class="textButton" data-count="${day}">本数を修正</button></div>${a.unknownDetails?'<p class="hint">本数のみ '+a.unknownDetails+'本。商品・アルコール量は未確認です。</p>':''}<div class="timeline">${timeline(state.drinks.filter(d=>B.recordDay(d)===day))}</div></div>`;}).join(''):'<p class="empty">記録したお酒は、ここに並びます。</p>';
     $('sessionHistory').innerHTML=state.sessions.length?[...state.sessions].sort((a,b)=>b.startedAt.localeCompare(a.startedAt)).map(s=>`<details class="sessionItem"><summary>${esc(stamp(s.startedAt,true))}から · ${B.sessionSummary(state,s.id).count}本 · ${s.finishedAt?'終了':'終了未記録'}</summary>${sessionHTML(s)}<p class="hint">${s.finishedAt?'飲酒終了 '+esc(stamp(s.finishedAt,true)):'終了日時はまだ保存されていません。'}</p><button data-session="${esc(s.id)}">開始・終了日時を修正</button></details>`).join(''):'<p class="hint">旧記録は日別履歴に保持しています。セッションは推測で作りません。</p>';
@@ -239,15 +242,26 @@
     const pid=$('bulkPriceProduct').value,from=$('bulkPriceFrom').value,to=$('bulkPriceTo').value;
     return state.drinks.filter(d=>d.purchasePriceYen===null&&(!pid||d.productId===pid)&&(!from||B.recordDay(d)>=from)&&(!to||B.recordDay(d)<=to)).sort((a,b)=>b.startedAt.localeCompare(a.startedAt));
   }
+  function validBulkPeriod(){
+    const from=$('bulkPriceFrom'),to=$('bulkPriceTo');
+    return from.validity.valid&&to.validity.valid&&(!from.value||!to.value||from.value<=to.value);
+  }
   function renderBulkSelection(){
     const n=bulkSelected.size,price=optional('bulkPriceValue');
-    $('bulkPriceSummary').textContent=n+'本を選択'+(price===null?'':' / 合計 '+money(n*price));
-    $('bulkPriceApply').disabled=blocked||!n||price===null;
+    const validPrice=price!==null&&Number.isFinite(price)&&$('bulkPriceValue').validity.valid;
+    $('bulkPriceSummary').textContent=!n?'価格を入れる記録を選んでください。':!validPrice?n+'本を選択 / 1本あたり0〜1,000,000,000円で入力してください。':n+'本 × '+money(price)+' ＝ 合計 '+money(n*price);
+    $('bulkPriceApply').textContent=n?n+'本に価格を入力する':'記録を選んでください';
+    $('bulkPriceApply').disabled=blocked||!n||!validPrice||!validBulkPeriod();
+    $('bulkClearSelection').disabled=!n;
   }
   function renderBulkPrices(){
-    bulkSelected.clear();const records=bulkPriceRecords().slice(0,100);
-    $('bulkPriceRecords').innerHTML=records.length?records.map(d=>`<label class="bulkPriceRow"><input type="checkbox" data-price-record="${esc(d.id)}"><span>${esc(d.snapshot.productName)}<small>${esc(B.recordDay(d))} ${esc(stamp(d.startedAt))} · ${d.snapshot.volumeMl}mL / ${d.snapshot.alcoholPercent}%</small></span></label>`).join(''):'<p class="hint">この条件の価格未入力の記録はありません。</p>';
-    $('bulkPriceCount').textContent=bulkPriceRecords().length+'本が未入力'+(bulkPriceRecords().length>100?'（最新100本まで表示。期間で絞り込めます）':'');
+    bulkSelected.clear();const valid=validBulkPeriod(),all=valid?bulkPriceRecords():[],records=all.slice(0,100);
+    $('bulkPriceFilterError').hidden=valid;
+    $('bulkPriceFilterError').textContent='開始日が終了日以前になるように、期間を入力してください。';
+    $('bulkPriceRecords').innerHTML=records.length?records.map(d=>`<label class="bulkPriceRow"><input type="checkbox" data-price-record="${esc(d.id)}"><span>${esc(d.snapshot.productName)}<small>${esc(B.recordDay(d))} ${esc(stamp(d.startedAt))} · ${d.snapshot.volumeMl}mL / ${d.snapshot.alcoholPercent}%</small></span></label>`).join(''):valid?'<p class="hint">この条件の価格未入力の記録はありません。</p>':'';
+    $('bulkPriceCount').textContent=valid?all.length+'本が未入力'+(all.length>100?' / 最新100本を表示。期間で絞り込めます。':''):'';
+    $('bulkSelectVisible').disabled=!records.length;
+    $('bulkPriceError').hidden=true;
     renderBulkSelection();
   }
   function openBulkPrices(){
@@ -330,8 +344,10 @@
   for(const id of ['bulkPriceProduct','bulkPriceFrom','bulkPriceTo'])$(id).onchange=renderBulkPrices;
   $('bulkPriceValue').oninput=renderBulkSelection;
   $('bulkPriceRecords').onchange=event=>{const id=event.target.dataset.priceRecord;if(!id)return;if(event.target.checked)bulkSelected.add(id);else bulkSelected.delete(id);renderBulkSelection();};
+  $('bulkClearSelection').onclick=()=>{bulkSelected.clear();for(const input of $('bulkPriceRecords').querySelectorAll('input'))input.checked=false;renderBulkSelection();};
   $('bulkSelectVisible').onclick=()=>{for(const input of $('bulkPriceRecords').querySelectorAll('input')){input.checked=true;bulkSelected.add(input.dataset.priceRecord);}renderBulkSelection();};
   $('bulkPriceForm').onsubmit=event=>{event.preventDefault();guard(()=>{
+    if(!validBulkPeriod())throw Error('期間を確認してください');
     const price=optional('bulkPriceValue');if(price===null)throw Error('1本あたりの購入価格を入力してください');
     const ids=[...bulkSelected];commit(B.setDrinkPrices(state,ids,price),ids.length+'本の実際の購入価格を入力しました。ほかの記録は変更していません。','選んだ記録の価格を入力しました');close('bulkPriceDialog');
   },'bulkPriceError');};
