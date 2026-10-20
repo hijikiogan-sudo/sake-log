@@ -35,3 +35,7 @@ dialog{width:min(94vw,520px);max-height:92dvh;overflow:auto;border:0;border-radi
 html{scroll-padding-top:12px;scroll-padding-bottom:100px}
 
 .priceEntry h2{font-size:18px}.priceEntry .hint{margin:8px 0 14px}.priceSummary{padding:14px;border-radius:12px;background:var(--soft);color:var(--green);font-size:14px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+
+.updateCard h2{font-size:18px}.updateBadge{flex-shrink:0;padding:4px 10px;border-radius:20px;font-size:11px;background:var(--soft);color:var(--green)}.updateBadge[data-state=available]{background:#f8edce;color:#614d1c}.updateBadge[data-state=error]{background:#f9e5df;color:var(--danger)}.updateCard .hint{overflow-wrap:anywhere}.updateCard #applyUpdate{margin-top:12px}
+
+.updateBadge[data-state=offline]{background:#eeeadd;color:var(--muted)}

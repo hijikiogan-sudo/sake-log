@@ -14,6 +14,8 @@
   const optional=id=>$(id).value.trim()===''?null:Number($(id).value);
   let repo=null,state=null,selectedId=null,editingProductId=null,productBase={},editingDrinkId=null,editSnapshot=null,editingSessionId=null;
   let registration=null,lastUpdateCheck=0,backupTracked=false,backupMeta=null;
+  let updateCheck=null,applyingUpdate=false;
+  const UPDATE_PENDING='kanlog_update_pending_v1';
   let bulkSelected=new Set();
   let duplicateCacheKey=null,duplicateCache=[];
   let duplicatePair=null,noticeDismissed=false,noticeTimer=null;
@@ -69,39 +71,79 @@
     $('backupLast').textContent=backupMeta.lastExportAt?'最後のJSON書き出し：'+new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(backupMeta.lastExportAt)):'JSON書き出し日の記録はまだありません。';
     const due=M.backupDue(backupMeta,hasBackupData());$('backupReminder').hidden=!due;$('backupHomeReminder').hidden=!due;
   }
-  async function checkUpdates(manual=false){
-    if(!M)return null;lastUpdateCheck=Date.now();$('checkUpdates').disabled=true;
+  function updateStatus(message,kind){
+    $('updateState').textContent=message;
+    $('updateBadge').dataset.state=kind;
+    $('updateBadge').textContent={checking:'確認中',latest:'最新版',available:'更新あり',offline:'通信待ち',applying:'更新中',error:'再試行できます'}[kind];
+  }
+  function updateControls(){
+    $('checkUpdates').disabled=!!updateCheck||applyingUpdate;
+    $('applyUpdate').disabled=!!updateCheck||applyingUpdate;
+    $('checkUpdates').textContent=updateCheck?'確認しています…':'更新を確認する';
+    $('applyUpdate').textContent=applyingUpdate?'更新しています…':'新しい版に更新する';
+  }
+  function checkUpdates(manual=false){
+    if(!M)return Promise.resolve(null);
+    if(updateCheck)return updateCheck;
+    lastUpdateCheck=Date.now();
+    updateStatus('更新情報を確認しています…',applyingUpdate?'applying':'checking');
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),8000);
-    if(manual)$('updateState').textContent='更新情報を確認しています…';
-    try{
-      const url=new URL('./kanlog-release.json',document.baseURI);url.searchParams.set('check',Date.now());
-      const response=await fetch(url,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error('更新情報を取得できませんでした');
-      const value=M.release(await response.json());if(!value)throw Error('更新情報の形式を確認できませんでした');
-      const available=value.version!==M.VERSION;
-      $('updateDot').hidden=!available;$('applyUpdate').hidden=!available;
-      document.querySelector('nav button[data-view=settings]').setAttribute('aria-label',available?'設定（新しい版があります）':'設定');
-      $('updateState').textContent=available?'新しい版があります。保存済みの記録を残して更新できます。':'現在の版は最新です。';return value;
-    }catch(e){$('updateState').textContent='通信できるときに更新を確認できます。記録は引き続き利用できます。';return null;}
-    finally{clearTimeout(timeout);$('checkUpdates').disabled=false;}
+    updateCheck=(async()=>{
+      try{
+        const url=new URL('./kanlog-release.json',document.baseURI);url.searchParams.set('check',Date.now());
+        const response=await fetch(url,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error('更新情報を取得できませんでした');
+        const value=M.release(await response.json());if(!value)throw Error('更新情報の形式を確認できませんでした');
+        const available=value.version!==M.VERSION;
+        $('updateDot').hidden=!available;$('applyUpdate').hidden=!available;
+        document.querySelector('nav button[data-view=settings]').setAttribute('aria-label',available?'設定（新しい版があります）':'設定');
+        $('latestVersion').hidden=false;$('latestVersion').textContent='確認できた配信版：'+value.version;
+        $('updateCheckedAt').textContent='最終確認：'+new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date());
+        updateStatus(available?'新しい版があります。保存済みの記録を残して更新できます。':'現在の版は最新です。',available?'available':'latest');
+        return value;
+      }catch(e){updateStatus('通信できるときに更新を確認できます。記録は引き続き利用できます。','offline');return null;}
+      finally{clearTimeout(timeout);updateCheck=null;updateControls();}
+    })();
+    updateControls();return updateCheck;
   }
   async function applyUpdate(){
-    $('applyUpdate').disabled=true;
+    if(applyingUpdate)return;
+    // Refreshing would discard edits in a dialog that has not been saved yet.
+    if(document.querySelector('dialog[open]'))return;
+    $('updateResult').hidden=true;applyingUpdate=true;updateControls();
     try{
       const release=await checkUpdates(true);if(!release||release.version===M.VERSION)return;
+      updateStatus('新しい版を準備しています。しばらくお待ちください。','applying');
       if('serviceWorker' in navigator){
         registration=registration||await navigator.serviceWorker.getRegistration();
         if(registration){
-          await registration.update();const worker=registration.installing||registration.waiting;
+          await new Promise((resolve,reject)=>{
+            const timer=setTimeout(()=>reject(Error('更新の準備が間に合いませんでした。')),12000);
+            registration.update().then(value=>{clearTimeout(timer);resolve(value);},error=>{clearTimeout(timer);reject(error);});
+          });
+          const worker=registration.installing||registration.waiting;
           if(worker&&worker.state!=='activated')await new Promise((resolve,reject)=>{
-            const timer=setTimeout(()=>reject(Error('更新の準備が間に合いませんでした。もう一度お試しください。')),12000);
+            const timer=setTimeout(()=>{worker.removeEventListener('statechange',changed);reject(Error('更新の準備が間に合いませんでした。もう一度お試しください。'));},12000);
             const changed=()=>{if(worker.state==='activated'){clearTimeout(timer);worker.removeEventListener('statechange',changed);resolve();}else if(worker.state==='redundant'){clearTimeout(timer);worker.removeEventListener('statechange',changed);reject(Error('更新を取得できませんでした'));}};
             worker.addEventListener('statechange',changed);changed();
           });
         }
       }
+      try{sessionStorage.setItem(UPDATE_PENDING,JSON.stringify({version:release.version,at:Date.now()}));}catch(_){}
       const url=new URL(location.href);url.searchParams.set('app',release.version);location.replace(url.href);
-    }catch(e){$('updateState').textContent=e.message||'更新できませんでした。通信を確認してお試しください。';}
-    finally{$('applyUpdate').disabled=false;}
+    }catch(e){updateStatus((e.message||'更新できませんでした。')+' 通信を確認して、もう一度お試しください。','error');}
+    finally{applyingUpdate=false;updateControls();}
+  }
+  function showUpdateResult(){
+    try{
+      const raw=sessionStorage.getItem(UPDATE_PENDING);if(!raw)return;
+      sessionStorage.removeItem(UPDATE_PENDING);const pending=JSON.parse(raw);
+      if(!M||!M.release(pending)||!Number.isFinite(pending.at)||Date.now()-pending.at>300000||pending.at>Date.now()+60000)return;
+      const success=pending.version===M.VERSION;
+      $('updateResult').hidden=false;$('updateResult').classList.toggle('error',!success);
+      $('updateResult').textContent=success?'更新しました。保存済みの記録を引き続き使えます。':'新しい版の読み込みを確認できませんでした。少し待ってから、もう一度更新を確認してください。';
+      switchView('settings');
+      $('updateResult').scrollIntoView({block:'center',behavior:'instant'});
+    }catch(_){}
   }
   function productLabel(p){return p.productName+' / '+p.volumeMl+'mL / '+p.alcoholPercent+'%';}
   function availableProducts(){return state.products.filter(p=>!p.archived);}
@@ -408,8 +450,9 @@
   if(!state){blocked=true;for(const el of document.querySelectorAll('.write'))el.disabled=true;switchView('settings');}
   window.addEventListener('storage',event=>{if(!event.key||[S?.KEY,S?.OLD_KEY].includes(event.key)){blocked=true;render();note('別の画面で記録が更新されました。再読み込みしてから操作してください。保存は停止しています。',true);}});
   window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&state){renderHome();if(M&&Date.now()-lastUpdateCheck>300000)checkUpdates();}});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&state){renderHome();if(M&&!applyingUpdate&&Date.now()-lastUpdateCheck>300000)checkUpdates();}});
   setInterval(()=>{if(state&&currentView==='home'&&!document.querySelector('dialog[open]'))renderHome();},30000);
+  showUpdateResult();
   if(M)checkUpdates();
   if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol))navigator.serviceWorker.register('./sw.js').then(value=>{registration=value;}).catch(()=>note('オフライン用の準備ができませんでした。通信のある状態で再読み込みしてください。',true));
 })();
