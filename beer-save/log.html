@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#193D31"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="缶ログ">
+<meta name="description" content="缶のお酒を、かんたん記録。いつもの銘柄を選んで、飲み始めにワンタップ。">
+<title>缶ログ｜缶のお酒を、かんたん記録。</title>
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./kanlog.css?v=kanlog-20261020">
+<script defer src="./beer-catalog.js?v=kanlog-20261020"></script>
+<script defer src="./beer-core.js?v=kanlog-20261020"></script>
+<script defer src="./beer-store.js?v=kanlog-20261020"></script>
+<script defer src="./beer-recognition.js?v=kanlog-20261020"></script>
+<script defer src="./beer-live-barcode.js?v=kanlog-20261020"></script>
+<script defer src="./beer-camera-ui.js?v=kanlog-20261020"></script>
+<script defer src="./kanlog-app.js?v=kanlog-20261020"></script>
+</head>
+<body>
+<main class="app">
+<header class="brand"><div class="brandMain"><img src="./icon.svg" alt="" width="43" height="43"><div><h1>缶ログ</h1><p class="hint">缶のお酒を、かんたん記録。</p></div></div><div class="dateMark" id="todayDate"></div></header>
+<noscript><p class="notice">記録するにはJavaScriptを有効にしてください。</p></noscript>
+<div id="status" class="status" role="status" aria-live="polite" hidden></div>
+<section id="homeView" aria-label="ホーム">
+<div id="sessionReminder" class="notice" hidden>前回の飲酒が終了未記録です。<br><button id="reviewActive" class="textButton">終了時刻を確認・修正する</button></div>
+<div class="controlCard">
+<div class="controlTop"><p class="eyebrow">今日の、ひと缶。</p><span id="sessionBadge" class="sessionBadge">飲酒前</span></div>
+<div class="selection"><div><p id="selectedName" class="productName">いつものお酒を<br>選びましょう</p><p id="selectedFacts" class="productFacts">まずは銘柄を登録してください</p></div><button id="chooseProduct" class="change">銘柄変更</button></div>
+<p id="sessionCount" class="sessionCount" hidden>今回 <strong id="sessionCountNumber">0</strong>本</p>
+<button id="startBtn" class="mainAction write">飲酒スタート</button>
+<button id="addBtn" class="mainAction write" hidden>＋1本</button>
+<p class="actionHint" id="actionHint">スタートで、選んだ銘柄の1本目を記録</p>
+<button id="finishBtn" class="finishAction write" hidden>飲酒終わり</button>
+</div>
+<div id="undoBar" class="undo" hidden><span id="undoText"></span><button id="undoBtn" class="write">取り消す</button></div>
+<div class="usual"><div class="sectionHeading"><h2>いつものお酒</h2><button id="allProducts" class="textButton">登録済み一覧 ›</button></div><div id="recentProducts" class="recentGrid"></div><div class="row" style="margin-top:12px"><button id="beerLiveButton" class="textButton">▥ バーコードで登録</button><button id="manualProduct" class="textButton">＋ 手動で登録</button></div></div>
+<div class="sectionHeading"><h2>本日の記録</h2><small id="dayBoundaryHint"></small></div>
+<div class="metricGrid" id="todayMetrics"></div>
+<div id="sessionSummary" class="card estimateCard"></div>
+<div class="sectionHeading"><h2>今日のログ</h2><small>タップして編集</small></div><div class="timeline" id="todayTimeline"></div>
+</section>
+<section id="historyView" aria-label="履歴" hidden>
+<h2 class="pageTitle">履歴</h2><p class="hint">記録の修正も、価格の入力も、あとから。</p>
+<button id="pastDrink" class="wide write">＋ 過去の1本を追加</button>
+<div class="card"><h2>飲酒セッション</h2><div id="sessionHistory"></div></div>
+<div id="history"></div>
+<details class="card"><summary>本数だけの記録・本数の修正</summary><p class="hint">商品の分からない日は本数だけ保存できます。詳細記録より少ない本数にはできません。詳細は各ログから編集・削除してください。</p><form id="countForm"><label for="countDay">集計日（日本時間）</label><input id="countDay" type="date" required><label for="dayCount">その日の合計本数</label><input id="dayCount" type="number" min="0" max="10000" step="1" required><button class="primary write" type="submit">合計本数を保存</button></form></details>
+</section>
+<section id="analysisView" aria-label="集計" hidden>
+<h2 class="pageTitle">集計</h2><p class="hint">飲んだお酒を、少し振り返る。</p>
+<label for="period">表示期間</label><select id="period"><option value="day">今日</option><option value="week">今週（月曜から）</option><option value="month" selected>今月</option><option value="year">今年</option><option value="all">全期間</option></select>
+<p id="periodLabel" class="hint" style="margin-top:10px"></p><div id="analysisMetrics" class="metricGrid"></div>
+<div class="card"><h2>よく飲んだ銘柄</h2><div id="rankings"></div></div>
+<details class="card"><summary>日別の記録・カレンダー</summary><div class="row"><button id="prevMonth" aria-label="前の月">‹</button><b id="monthLabel"></b><button id="nextMonth" aria-label="次の月">›</button></div><div class="calendar" id="calendar"></div><div id="calendarDetail"></div></details>
+<details class="card"><summary>以前の節約管理</summary><p class="hint">以前の設定と本数から計算する参考値です。実際に消費したお酒の金額とは異なります。</p><div id="savings"></div></details>
+</section>
+<section id="settingsView" aria-label="設定" hidden>
+<h2 class="pageTitle">設定</h2><p class="hint">銘柄とデータを、自分のペースで。</p>
+<div class="card"><div class="row"><h2>登録済みのお酒</h2><button id="newProduct" class="textButton write">＋ 登録</button></div><div id="productList"></div><p class="hint">参考単価を変更しても、過去の記録の実際の価格は変わりません。</p><details><summary>商品辞書について</summary><p id="beerCatalogInfo" class="hint"></p></details></div>
+<div class="card"><h2>分解時間の計算条件</h2><p class="hint">既定値は純アルコール10gにつき約2.5時間（4g/時）。個人の分解能力を測定した値ではありません。</p><form id="estimateForm"><label for="metabolismRate">1時間あたりの推定分解量（g）</label><input id="metabolismRate" type="number" min="1" max="20" step="0.1" required><button class="primary write" type="submit">計算条件を保存</button></form><details><summary>推定方法と限界</summary><p class="hint">各缶の飲み始めに純アルコール量を加え、次の缶までの時間で設定量を差し引きます。飲んでいない時間の分解能力を繰り越しません。終了日時がある場合、推定終了はその時刻より前にはしません。吸収速度・食事・体格等はモデル化していません。同じセッションの詳細記録のみが対象で、本数だけの記録は量を推測しません。</p><p class="hint">個人差が大きく、運転できる時刻やアルコールの消失を保証しません。<a href="https://izonsho.mhlw.go.jp/alcoholwacth/" target="_blank" rel="noopener noreferrer">参考：厚生労働省 アルコールウォッチ</a></p></details></div>
+<details class="card"><summary>1日の区切り・以前の節約設定</summary><form id="dayBoundaryForm"><label for="dayStartHour">集計日の開始時刻（日本時間）</label><select id="dayStartHour"></select><p class="hint">変更は新しい記録に適用し、過去の集計日は保持します。</p><button type="submit" class="primary write">区切り時刻を保存</button></form><form id="settingsForm"><div class="grid"><div><label for="baseline">基準本数 / 日</label><input id="baseline" type="number" min="1" max="12" required></div><div><label for="target">目標本数 / 日</label><input id="target" type="number" min="0" max="12" required></div></div><label for="price">基準価格 / 本（円）</label><input id="price" type="number" min="0" step="any" required><button type="submit" class="primary write">節約設定を保存</button></form></details>
+<div class="card"><h2>バックアップと復元</h2><p class="hint">記録はこの端末・ブラウザ内に保存します。JSONは復元用、CSVは表計算用です。端末の外にも保管してください。</p><div class="grid"><button id="exportJson">JSONを保存</button><button id="exportCsv">CSVを保存</button></div><button id="exportRecovery" class="wide subtle" style="margin-top:10px">直前の回復用JSON</button><label for="importFile">バックアップから読み込む</label><input id="importFile" type="file" accept=".json,application/json"><details><summary>JSONを貼り付けて読み込む</summary><label for="importText">バックアップJSON</label><textarea id="importText"></textarea><button id="checkImport" class="wide">内容を確認</button></details><div id="importSummary"></div><div id="importActions" class="grid" hidden><button id="mergeImport" class="write">重複IDを除いて統合</button><button id="replaceImport" class="write">この内容に復元</button></div><details><summary>旧データ・原文のバックアップ</summary><p class="hint">旧名称の記録・旧保存キーは削除しません。</p><button id="readLegacy">旧記録を確認</button><button id="exportLegacy">旧JSONを保存</button><button id="exportRaw">現在の保存原文を退避</button></details></div>
+<p class="footerNote">缶ログ · 記録は端末の中に。</p>
+</section>
+</main>
+<nav class="tabs" aria-label="メインナビゲーション">
+<button data-view="home" aria-selected="true" aria-controls="homeView"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10H3Z"/><path d="M9 20v-7h6v7"/></svg>ホーム</button>
+<button data-view="history" aria-selected="false" aria-controls="historyView"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h14v17H5Z M8 2v4 M16 2v4 M9 10h6 M9 14h6 M9 18h4"/></svg>履歴</button>
+<button data-view="analysis" aria-selected="false" aria-controls="analysisView"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 21V11h4v10 M10 21V4h4v17 M16 21v-8h4v8"/></svg>集計</button>
+<button data-view="settings" aria-selected="false" aria-controls="settingsView"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 3-1 3-3 1-2 4 2 3 1 4 4 3 3-1 4-1 3-4-1-4-1-4-4-1Z"/><circle cx="12" cy="12" r="3"/></svg>設定</button>
+</nav>
+<dialog id="productPicker" aria-labelledby="pickerTitle"><div class="row dialogHeader"><h2 id="pickerTitle">お酒を選ぶ</h2><button class="close" data-close="productPicker" aria-label="閉じる">×</button></div><p class="hint">選ぶだけでは本数は増えません。</p><div id="pickerProducts" class="pickerList"></div><div class="grid"><button id="pickerBarcode">バーコードで登録</button><button id="pickerManual">手動で登録</button></div></dialog>
+<dialog id="productDialog" aria-labelledby="productTitle"><div class="row dialogHeader"><h2 id="productTitle">お酒を登録</h2><button class="close" data-close="productDialog" aria-label="閉じる">×</button></div><p class="hint">登録したあと、ホームから飲酒を始められます。</p><form id="productForm"><div id="productError" class="dialogError" role="alert" hidden></div><label for="janCode">JAN / EANコード（任意）</label><div class="row"><input id="janCode" inputmode="numeric" maxlength="20" autocomplete="off"><button id="lookupJan" type="button" style="flex-shrink:0">照合</button></div><div id="barcodeChoices" class="pickerList"></div><p id="barcodeNote" class="hint"></p><label for="productName">商品名 <small>必須</small></label><input id="productName" required maxlength="200"><div class="grid"><div><label for="volumeMl">容量（mL） <small>必須</small></label><input id="volumeMl" type="number" min="1" max="10000" step="any" required inputmode="decimal"></div><div><label for="alcoholPercent">度数（%） <small>必須</small></label><input id="alcoholPercent" type="number" min="0.01" max="100" step="any" required inputmode="decimal"></div></div><label for="manufacturer">メーカー（任意）</label><input id="manufacturer" maxlength="200"><label for="referencePriceYen">参考単価（円・あとから入力できます）</label><input id="referencePriceYen" type="number" min="0" max="1000000000" step="any" inputmode="decimal" placeholder="不明なら空欄"><p class="hint">参考単価は実際の購入価格と別に保持します。過去の飲酒記録は変更しません。</p><details><summary>その他の商品情報</summary><label for="category">種類</label><select id="category"><option value="beer">ビール</option><option value="happoshu">発泡酒・新ジャンル</option><option value="chuhai">チューハイ・サワー</option><option value="highball">ハイボール</option><option value="wine">缶ワイン</option><option value="sake">缶日本酒</option><option value="shochu">缶焼酎</option><option value="cocktail">缶カクテル</option><option value="seltzer">ハードセルツァー</option><option value="other" selected>その他の缶入り酒類</option></select><label for="caloriesKcal">1缶のカロリー（kcal）</label><input id="caloriesKcal" type="number" min="0" max="1000000" step="any" inputmode="decimal"><label for="revision">商品版・変更メモ</label><input id="revision" maxlength="200"></details><button type="submit" class="primary write">商品を保存して選ぶ</button></form></dialog>
+<dialog id="beerLiveDialog" aria-labelledby="beerLiveTitle"><div class="row dialogHeader"><h2 id="beerLiveTitle">バーコードで登録</h2><button id="beerLiveClose" class="close" aria-label="閉じる">×</button></div><div class="liveViewport" id="beerLiveViewport"><video id="beerLiveVideo" autoplay muted playsinline></video><canvas id="beerLivePreview" hidden></canvas><div class="liveGuide" aria-hidden="true"><span></span></div></div><p id="beerLiveStatus" class="status" role="status" aria-live="polite">カメラを準備しています</p><div id="beerLiveResult" hidden><strong id="beerLiveProduct" class="liveProduct"></strong><p id="beerLiveFacts" class="liveFacts"></p><p id="beerLiveCode" class="hint"></p><div id="beerLiveChoices" class="pickerList"></div><button id="beerLiveConfirm" class="primary">商品情報を確認する</button></div><button id="beerLiveRetry" class="wide" style="margin-top:12px">もう一度読み取る</button><label class="livePhotoLabel" for="barcodeFile">バーコードの画像から読み取る<input id="barcodeFile" type="file" accept="image/*"></label><button id="barcodeManual" class="textButton wide">JANコードを手入力する</button><p class="hint">読み取るだけでは飲酒記録は追加しません。</p></dialog>
+<dialog id="editDialog" aria-labelledby="editTitle"><div class="row dialogHeader"><h2 id="editTitle">1本の記録を編集</h2><button class="close" data-close="editDialog" aria-label="閉じる">×</button></div><form id="editForm"><div id="editError" class="dialogError" role="alert" hidden></div><label for="editSavedProduct">銘柄を変更する</label><select id="editSavedProduct"></select><label for="editName">商品名</label><input id="editName" required maxlength="200"><div class="grid"><div><label for="editVolume">容量（mL）</label><input id="editVolume" type="number" min="1" max="10000" step="any" required></div><div><label for="editAlcohol">度数（%）</label><input id="editAlcohol" type="number" min="0.01" max="100" step="any" required></div></div><label for="editStartedAt">飲み始め（日本時間）</label><input id="editStartedAt" type="datetime-local" required><label for="editPrice">この1本の実際の購入価格（円）</label><input id="editPrice" type="number" min="0" max="1000000000" step="any" inputmode="decimal" placeholder="不明なら空欄"><p class="hint">この記録だけに反映します。0円と未入力は区別します。</p><label id="detachLabel" class="check" hidden><input id="detachIncluded" type="checkbox"><span>集計日を移す場合、元の日の旧本数を残して別日の1本として追加する</span></label><button type="submit" class="primary write">変更を保存</button><button id="deleteDrink" type="button" class="textButton danger wide write" style="margin-top:14px">この詳細記録を削除</button></form></dialog>
+<dialog id="sessionDialog" aria-labelledby="sessionEditTitle"><div class="row dialogHeader"><h2 id="sessionEditTitle">飲酒日時を修正</h2><button class="close" data-close="sessionDialog" aria-label="閉じる">×</button></div><form id="sessionEditForm"><div id="sessionError" class="dialogError" role="alert" hidden></div><label for="sessionStartedAt">開始日時（日本時間）</label><input id="sessionStartedAt" type="datetime-local" required><label for="sessionFinishedAt">終了日時（日本時間）</label><input id="sessionFinishedAt" type="datetime-local"><p class="hint">終了を空欄にすると未終了に戻せます。別の未終了セッションがある場合は戻せません。開始と終了は各缶の飲み始めを含む必要があります。</p><button class="primary write" type="submit">日時を保存</button></form></dialog>
+<dialog id="pastDialog" aria-labelledby="pastTitle"><div class="row dialogHeader"><h2 id="pastTitle">過去の1本を追加</h2><button class="close" data-close="pastDialog" aria-label="閉じる">×</button></div><form id="pastForm"><div id="pastError" class="dialogError" role="alert" hidden></div><label for="pastProduct">登録済みのお酒</label><select id="pastProduct" required></select><label for="pastStartedAt">飲み始め（日本時間）</label><input id="pastStartedAt" type="datetime-local" required><label for="pastSession">飲酒セッション</label><select id="pastSession"></select><p class="hint">セッションを選ぶ場合は、その開始〜終了の間の時刻を指定してください。</p><label for="pastPrice">実際の購入価格（円・任意）</label><input id="pastPrice" type="number" min="0" max="1000000000" step="any"><label class="check"><input id="pastIncluded" type="checkbox"><span>すでに本数だけ入力した記録の内訳として追加する</span></label><button class="primary write" type="submit">この1本を追加</button></form></dialog>
+</body></html>
