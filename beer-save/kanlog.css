@@ -39,3 +39,5 @@ html{scroll-padding-top:12px;scroll-padding-bottom:100px}
 .updateCard h2{font-size:18px}.updateBadge{flex-shrink:0;padding:4px 10px;border-radius:20px;font-size:11px;background:var(--soft);color:var(--green)}.updateBadge[data-state=available]{background:#f8edce;color:#614d1c}.updateBadge[data-state=error]{background:#f9e5df;color:var(--danger)}.updateCard .hint{overflow-wrap:anywhere}.updateCard #applyUpdate{margin-top:12px}
 
 .updateBadge[data-state=offline]{background:#eeeadd;color:var(--muted)}
+
+.backupCard h2{font-size:18px}.backupCard>.row{align-items:flex-start;flex-wrap:wrap}.backupBadge{font-size:11px;background:var(--soft);color:var(--green);padding:4px 10px;border-radius:20px}.backupBadge.due{background:#f8edce;color:#614d1c}.backupResult{margin-top:14px;font-size:12px;overflow-wrap:anywhere}

@@ -60,16 +60,36 @@
   }
   function download(name,content,type='application/json'){
     const url=URL.createObjectURL(new Blob([content],{type})),a=document.createElement('a');
-    a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+    a.href=url;a.download=name;document.body.append(a);
+    try{a.click();}finally{a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}
   }
-  function exportJson(){if(!state)throw Error('保存原文を退避してください');download('缶ログ_backup_'+B.currentDay(state)+'_'+Date.now()+'.json',B.serialize(state));if(M&&backupMeta&&hasBackupData()){backupMeta=M.exported(backupMeta);persistBackupMeta();renderBackupStatus();}}
+  function backupResult(message){
+    for(const id of ['backupExportResult','backupHomeResult']){$(id).textContent=message;$(id).hidden=false;}
+  }
+  function exportJson(){
+    if(!state)throw Error('保存原文を退避してください');
+    const name='缶ログ_backup_'+B.currentDay(state)+'_'+Date.now()+'.json';
+    download(name,B.serialize(state));
+    let tracked=true;
+    if(M&&backupMeta&&hasBackupData()){backupMeta=M.exported(backupMeta);tracked=persistBackupMeta();renderBackupStatus();}
+    backupResult('JSONの書き出しを開始しました。保存先に「'+name+'」があるか確認してください。'+(tracked?'':'書き出し日時を端末に記憶できませんでした。'));
+  }
   function hasBackupData(){return !!state&&(state.drinks.length>0||state.products.length>0||Object.keys(state.countOnlyRecords).length>0);}
-  function persistBackupMeta(){try{localStorage.setItem(M.BACKUP_KEY,JSON.stringify(backupMeta));}catch(_){} }
+  function persistBackupMeta(){try{localStorage.setItem(M.BACKUP_KEY,JSON.stringify(backupMeta));return true;}catch(_){return false;} }
+  function backupDate(iso){return new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'numeric',day:'numeric'}).format(new Date(iso));}
   function renderBackupStatus(){
     if(!M||!backupMeta)return;
-    if(hasBackupData()&&!backupTracked){backupMeta.firstSeenAt=now();backupTracked=true;persistBackupMeta();}
+    const hasData=hasBackupData();
+    if(hasData&&!backupTracked){backupMeta.firstSeenAt=now();backupTracked=true;persistBackupMeta();}
     $('backupLast').textContent=backupMeta.lastExportAt?'最後のJSON書き出し：'+new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(backupMeta.lastExportAt)):'JSON書き出し日の記録はまだありません。';
-    const due=M.backupDue(backupMeta,hasBackupData());$('backupReminder').hidden=!due;$('backupHomeReminder').hidden=!due;
+    $('backupSummary').textContent=hasData?'今回のJSON：飲酒記録 '+B.aggregate(state).count+'本 / 登録銘柄 '+state.products.length+'件（一覧から削除した銘柄も含みます）。':'記録が増えると、ここからJSONを書き出せます。';
+    const due=M.backupDue(backupMeta,hasData),snoozed=hasData&&Date.parse(backupMeta.snoozedUntil)>Date.now();
+    const next=new Date(Math.max(Date.parse(backupMeta.lastExportAt||backupMeta.firstSeenAt)+30*86400000,Date.parse(backupMeta.snoozedUntil)||0)).toISOString();
+    $('backupBadge').textContent=!hasData?'記録待ち':snoozed?'案内を休止中':due?'書き出しの時期':backupMeta.lastExportAt?'書き出し履歴あり':'書き出し未記録';
+    $('backupBadge').classList.toggle('due',due);
+    $('backupSchedule').textContent=!hasData?'データがない間はバックアップの案内を表示しません。':due?'前回の書き出し、または最初の記録から30日以上経ちました。':snoozed?'案内を休止中です。次回の案内：'+backupDate(next):'次回の案内：'+backupDate(next)+'（30日ごとの目安）';
+    $('resumeBackup').hidden=!snoozed;
+    $('backupReminder').hidden=!due;$('backupHomeReminder').hidden=!due;
   }
   function updateStatus(message,kind){
     $('updateState').textContent=message;
@@ -409,7 +429,8 @@
   $('checkUpdates').onclick=()=>checkUpdates(true);
   $('applyUpdate').onclick=applyUpdate;
   for(const id of ['reminderExport','homeReminderExport'])$(id).onclick=()=>guard(exportJson);
-  for(const id of ['snoozeBackup','homeSnoozeBackup'])$(id).onclick=()=>{if(M&&backupMeta){backupMeta=M.snooze(backupMeta);persistBackupMeta();renderBackupStatus();}};
+  for(const id of ['snoozeBackup','homeSnoozeBackup'])$(id).onclick=()=>{if(M&&backupMeta){backupMeta=M.snooze(backupMeta);const stored=persistBackupMeta();renderBackupStatus();backupResult(backupDate(backupMeta.snoozedUntil)+'まで案内を休止します。設定から再開できます。'+(stored?'':'この休止設定を端末に記憶できませんでした。'));}};
+  $('resumeBackup').onclick=()=>{if(M&&backupMeta){backupMeta={...backupMeta,snoozedUntil:null};const stored=persistBackupMeta();renderBackupStatus();backupResult('バックアップの案内を再開しました。'+(stored?'':'この設定を端末に記憶できませんでした。'));}};
   $('exportJson').onclick=()=>guard(exportJson);
   $('exportCsv').onclick=()=>guard(()=>download('缶ログ_'+B.currentDay(state)+'.csv',B.csv(state),'text/csv;charset=utf-8'));
   $('exportRaw').onclick=()=>guard(()=>{const raw=localStorage.getItem(S?.KEY||'beer_save_pwa_v2');if(raw===null)throw Error('保存された原文はありません');download('缶ログ_保存原文.json',raw);});
@@ -438,7 +459,7 @@
   guard(()=>{
     if(!B||!S||B.empty().version!==6||typeof B.duplicateProductCandidates!=='function'||typeof B.setDrinkPrices!=='function')throw Error('アプリの更新を読み込めません。再読み込みしてください。記録は変更していません。');
     repo=S.open(localStorage);state=repo.get();blocked=repo.hasConflict();
-    if(M){let raw=null;try{raw=localStorage.getItem(M.BACKUP_KEY);}catch(_){}backupTracked=!!raw;backupMeta=M.backupMeta(raw);$('appVersion').textContent='このアプリの版：'+M.VERSION;}
+    if(M){let raw=null;try{raw=localStorage.getItem(M.BACKUP_KEY);}catch(_){}backupMeta=M.backupMeta(raw);try{backupTracked=JSON.parse(raw)?.firstSeenAt===backupMeta.firstSeenAt;}catch(_){backupTracked=false;}$('appVersion').textContent='このアプリの版：'+M.VERSION;}
     cursor=B.currentDay(state).slice(0,7);$('countDay').value=B.currentDay(state);$('dayCount').value=B.aggregate(state,k=>k===B.currentDay(state)).count;
     const cat=window.BeerCatalog;
     $('beerCatalogInfo').textContent=cat?'JAN '+cat.products.length+'件 / 確認 '+(cat.autoUpdate?.checkedOn||cat.verifiedOn)+'。辞書にない商品は手動で登録できます。容量や度数は缶の表示を確認してください。':'商品辞書を読み込めませんでした。手動登録は利用できます。';

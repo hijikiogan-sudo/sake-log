@@ -1,6 +1,6 @@
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.KanMaintenance=factory();})(typeof window!=='undefined'?window:this,function(){
   'use strict';
-  const VERSION='2026-10-20-updates',BACKUP_KEY='kanlog_backup_meta_v1',DAY=86400000;
+  const VERSION='2026-10-20-backups',BACKUP_KEY='kanlog_backup_meta_v1',DAY=86400000;
   function backupMeta(raw,when=Date.now()){
     let value={};try{const parsed=JSON.parse(raw);if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))value=parsed;}catch(_){}
     const past=x=>typeof x==='string'&&Number.isFinite(Date.parse(x))&&Date.parse(x)<=when+60000;
