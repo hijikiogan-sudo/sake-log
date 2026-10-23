@@ -42,6 +42,10 @@
   // Years of history render in pages so startup and saving stay quick.
   const HISTORY_PAGE=30,SESSION_PAGE=20;
   let historyLimit=HISTORY_PAGE,sessionLimit=SESSION_PAGE;
+  // A second "+1" soon after the last can asks for one more tap, so a double
+  // tap or pocket press does not silently record extra cans.
+  const RAPID_ADD_MS=60000,CONFIRM_WINDOW_MS=5000,CONFIRM_DELAY_MS=400;
+  let confirmAddFrom=0,confirmAddUntil=0;
   function renderFeedback(){
     const slot=$(currentView==='home'?'homeFeedbackSlot':'globalFeedbackSlot');
     if($('feedback').parentElement!==slot)slot.append($('feedback'));
@@ -213,8 +217,10 @@
     $('sessionCount').hidden=!active;$('sessionCountNumber').textContent=active?B.sessionSummary(state,active.id).count:'0';
     $('startBtn').hidden=!!active;$('addBtn').hidden=!active;$('finishBtn').hidden=!active;
     const last=active?state.drinks.filter(d=>d.sessionId===active.id).at(-1):null;
-    $('addBtn').textContent=!chosen?'銘柄を選んで1本追加':last&&selectedId!==last.productId?'この銘柄を1本追加':'＋1本';
-    $('actionHint').textContent=active?'新しい缶を飲み始めたら、押してください':'スタートで、選んだ銘柄の1本目を記録';
+    const confirming=!!active&&Date.now()<confirmAddUntil;
+    $('addBtn').textContent=confirming?'もう1本追加する':!chosen?'銘柄を選んで1本追加':last&&selectedId!==last.productId?'この銘柄を1本追加':'＋1本';
+    $('addBtn').classList.toggle('confirming',confirming);
+    $('actionHint').textContent=confirming?'1分以内に記録済みです。追加するならもう一度押してください':active?'新しい缶を飲み始めたら、押してください':'スタートで、選んだ銘柄の1本目を記録';
     for(const id of ['startBtn','addBtn'])$(id).disabled=blocked||Date.now()<busyUntil;
     $('todayDate').textContent=new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',month:'long',day:'numeric',weekday:'short'}).format(new Date());
     $('dayBoundaryHint').textContent=(state.settings.dayStartHour?state.settings.dayStartHour+'時区切り · ':'')+day.slice(5).replace('-',' / ');
@@ -366,6 +372,16 @@
   function quick(start){
     if(Date.now()<busyUntil)return;
     ensureWrite();if(!selectedId){open('productPicker');return;}
+    if(!start){
+      const active=B.activeSession(state),t=Date.now();
+      const last=active&&state.drinks.filter(d=>d.sessionId===active.id).reduce((a,d)=>!a||d.startedAt>a.startedAt?d:a,null);
+      if(t<confirmAddFrom)return;
+      if(t>confirmAddUntil&&last&&t-Date.parse(last.startedAt)<RAPID_ADD_MS){
+        confirmAddFrom=t+CONFIRM_DELAY_MS;confirmAddUntil=t+CONFIRM_WINDOW_MS;renderHome();
+        setTimeout(()=>{if(state)renderHome();},CONFIRM_WINDOW_MS+50);return;
+      }
+    }
+    confirmAddFrom=confirmAddUntil=0;
     const next=B.addFromProduct(state,selectedId,now(),{start});
     busyUntil=Date.now()+800;
     commit(next,start?'飲酒を始めました。1本目を記録しました。':'1本を追加しました。',start?'1本目を記録しました':'1本を追加しました');
