@@ -340,7 +340,31 @@
   function decode(raw) {
     if(typeof raw!=='string' || raw.length>10*1024*1024)fail('バックアップは10MB以下にしてください');
     const value=JSON.parse(raw);
+    if(object(value)&&value.version===7)return canonical(expand(value));
     return [2,3,4,5,6].includes(value.version) ? canonical(value) : migrate(raw);
+  }
+  // Storage-only format (version 7). Every drink keeps a full product snapshot,
+  // but they repeat a handful of products, so snapshots are stored once in a
+  // table and drinks refer to them by index. pureAlcoholGrams is recomputed by
+  // canonical(). Exports and backups keep the version 6 shape.
+  function encode(state){
+    const value=canonical(state),snapshots=[],index=new Map();
+    const drinks=value.drinks.map(({snapshot,pureAlcoholGrams,...d})=>{
+      const key=JSON.stringify(snapshot);
+      if(!index.has(key)){index.set(key,snapshots.length);snapshots.push(snapshot);}
+      return {...d,snapshotIndex:index.get(key)};
+    });
+    return JSON.stringify({...value,version:7,snapshots,drinks});
+  }
+  function expand(value){
+    if(!Array.isArray(value.snapshots)||!Array.isArray(value.drinks))fail('保存データの形式が不正です');
+    const {snapshots,...rest}=value;
+    return {...rest,version:6,drinks:value.drinks.map(d=>{
+      if(!object(d))fail('記録が不正です');
+      const {snapshotIndex,...drink}=d;
+      if(!Number.isInteger(snapshotIndex)||snapshotIndex<0||snapshotIndex>=snapshots.length)fail('商品情報の参照が不正です');
+      return {...drink,snapshot:snapshots[snapshotIndex]};
+    })};
   }
   function merge(state,incoming) {
     const a=canonical(state),b=canonical(incoming);
@@ -375,8 +399,8 @@
       get:()=>clone(state),
       commit(next,backup=false){
         if(storage.getItem(key)!==expected)fail('別の画面で記録が更新されています。再読み込みしてから操作してください');
-        // Stored without indentation (about a quarter smaller); exports stay readable.
-        const raw=JSON.stringify(canonical(next)),recoveryKey=key+'_recovery';
+        // Compact storage format; exports stay readable version 6 JSON.
+        const value=canonical(next),raw=encode(value),recoveryKey=key+'_recovery';
         const quota=e=>e&&(e.name==='QuotaExceededError'||e.name==='NS_ERROR_DOM_QUOTA_REACHED'||e.code===22||e.code===1014);
         // The recovery copy is a convenience; it must never stop a record from saving.
         if(backup&&expected!==null)try{storage.setItem(recoveryKey,expected);}catch(e){if(!quota(e))throw e;storage.removeItem(recoveryKey);}
@@ -386,9 +410,9 @@
           storage.removeItem(recoveryKey);
           try{storage.setItem(key,raw);}catch(e2){if(quota(e2))fail('端末の保存容量が足りないため、保存できませんでした。これまでの記録は残っています。設定の「JSONを保存」でバックアップしてください。');throw e2;}
         }
-        expected=raw;state=JSON.parse(raw);return clone(state);
+        expected=raw;state=value;return clone(state);
       }
     };
   }
-  return {DEFAULTS,normalizeJan,empty,migrate,canonical,product,fingerprint,pure,dayKey,recordDay,currentDay,activeSession,sessionSummary,estimate,saveProduct,archiveProduct,canConsolidateProducts,duplicateProductCandidates,consolidateProducts,recentProducts,addFromProduct,editSession,editDrink,setDrinkPrices,addPast,validDay,add,aggregate,setDailyTotal,remove,finish,decode,merge,serialize,csv,repository};
+  return {DEFAULTS,normalizeJan,empty,encode,migrate,canonical,product,fingerprint,pure,dayKey,recordDay,currentDay,activeSession,sessionSummary,estimate,saveProduct,archiveProduct,canConsolidateProducts,duplicateProductCandidates,consolidateProducts,recentProducts,addFromProduct,editSession,editDrink,setDrinkPrices,addPast,validDay,add,aggregate,setDailyTotal,remove,finish,decode,merge,serialize,csv,repository};
 });
