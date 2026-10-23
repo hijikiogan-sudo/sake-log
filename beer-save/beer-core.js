@@ -375,9 +375,17 @@
       get:()=>clone(state),
       commit(next,backup=false){
         if(storage.getItem(key)!==expected)fail('別の画面で記録が更新されています。再読み込みしてから操作してください');
-        const raw=serialize(next);
-        if(backup&&expected!==null)storage.setItem(key+'_recovery',expected);
-        storage.setItem(key,raw); // localStorage setItem is atomic; update memory only on success.
+        // Stored without indentation (about a quarter smaller); exports stay readable.
+        const raw=JSON.stringify(canonical(next)),recoveryKey=key+'_recovery';
+        const quota=e=>e&&(e.name==='QuotaExceededError'||e.name==='NS_ERROR_DOM_QUOTA_REACHED'||e.code===22||e.code===1014);
+        // The recovery copy is a convenience; it must never stop a record from saving.
+        if(backup&&expected!==null)try{storage.setItem(recoveryKey,expected);}catch(e){if(!quota(e))throw e;storage.removeItem(recoveryKey);}
+        try{storage.setItem(key,raw);} // localStorage setItem is atomic; update memory only on success.
+        catch(e){
+          if(!quota(e))throw e;
+          storage.removeItem(recoveryKey);
+          try{storage.setItem(key,raw);}catch(e2){if(quota(e2))fail('端末の保存容量が足りないため、保存できませんでした。これまでの記録は残っています。設定の「JSONを保存」でバックアップしてください。');throw e2;}
+        }
         expected=raw;state=JSON.parse(raw);return clone(state);
       }
     };

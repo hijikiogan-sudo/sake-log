@@ -1,4 +1,4 @@
-const CACHE='beer-save-kanlog-20261024-polish';
+const CACHE='beer-save-kanlog-20261024-storage';
 const PREFIX='beer-save-';
 const ASSETS=['./','./index.html','./log.html','./kanlog.css','./kanlog-app.js','./kanlog-maintenance.js','./beer-core.js','./beer-store.js','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png','./beer-catalog.js','./beer-recognition.js','./beer-live-barcode.js','./beer-camera-ui.js','./vendor/zxing-browser-0.2.1.min.js'];
 const ROOT=new URL('./',self.location.href);
