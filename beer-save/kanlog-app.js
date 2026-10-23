@@ -207,6 +207,7 @@
     const day=B.currentDay(state),a=B.aggregate(state,k=>k===day),active=B.activeSession(state);
     const chosen=availableProducts().find(p=>p.id===selectedId);
     $('selectedName').innerHTML=chosen?nameHTML(chosen.productName):'いつものお酒を<br>選びましょう';fitName();
+    $('chooseProduct').textContent=chosen?'銘柄変更':'銘柄を選ぶ';
     $('selectedFacts').textContent=chosen?chosen.volumeMl+'mL / '+chosen.alcoholPercent+'%':'まずは銘柄を登録してください';
     $('sessionBadge').textContent=active?'飲酒中':'飲酒前';
     $('sessionCount').hidden=!active;$('sessionCountNumber').textContent=active?B.sessionSummary(state,active.id).count:'0';

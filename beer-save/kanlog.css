@@ -12,7 +12,7 @@ dialog{width:min(94vw,520px);max-height:92dvh;overflow:auto;border:0;border-radi
 .duplicateChoice{display:flex;gap:12px;border:1px solid var(--line);border-radius:16px;padding:16px;background:var(--white);cursor:pointer}.duplicateChoice input{width:22px;min-height:22px;flex-shrink:0;margin-top:3px}.duplicateChoice span{min-width:0;overflow-wrap:anywhere}.duplicateChoice small{display:block;margin-top:8px}
 
 /* Reserve room below the drinking controls, so notices never move their targets. */
-.homeFeedbackSlot{min-height:104px;margin-top:12px}
+.homeFeedbackSlot{min-height:104px;margin-top:12px}.homeFeedbackSlot:has(>.feedback[hidden]){min-height:0;margin-top:0}
 .feedback{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 12px;background:var(--white);color:var(--ink);border:1px solid #c8d7c7;border-radius:14px;padding:8px 12px;margin-bottom:16px}
 .feedback #status{grid-column:1/-1;margin:0;padding:6px 0;background:transparent;font-size:12px;line-height:1.5}
 .feedback #status.error{background:#f9e5df;color:var(--danger);padding:8px;border-radius:8px}
