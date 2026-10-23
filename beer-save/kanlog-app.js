@@ -35,6 +35,8 @@
   let registration=null,lastUpdateCheck=0,backupTracked=false,backupMeta=null;
   let updateCheck=null,applyingUpdate=false;
   const UPDATE_PENDING='kanlog_update_pending_v1';
+  // Version the user chose to postpone on the home notice (until next launch).
+  let postponedUpdate=null,latestRelease=null;
   let bulkSelected=new Set();
   let duplicateCacheKey=null,duplicateCache=[];
   let duplicatePair=null,noticeDismissed=false,noticeTimer=null;
@@ -127,6 +129,8 @@
     $('applyUpdate').disabled=!!updateCheck||applyingUpdate;
     $('checkUpdates').textContent=updateCheck?'確認しています…':'更新を確認する';
     $('applyUpdate').textContent=applyingUpdate?'更新しています…':'新しい版に更新する';
+    $('homeApplyUpdate').disabled=!!updateCheck||applyingUpdate;
+    $('homeApplyUpdate').textContent=applyingUpdate?'更新しています…':'今すぐ更新';
   }
   function checkUpdates(manual=false){
     if(!M)return Promise.resolve(null);
@@ -139,8 +143,10 @@
         const url=new URL('./kanlog-release.json',document.baseURI);url.searchParams.set('check',Date.now());
         const response=await fetch(url,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error('更新情報を取得できませんでした');
         const value=M.release(await response.json());if(!value)throw Error('更新情報の形式を確認できませんでした');
-        const available=value.version!==M.VERSION;
+        const available=value.version!==M.VERSION;latestRelease=value;
         $('updateDot').hidden=!available;$('applyUpdate').hidden=!available;
+        $('updateHomeNotice').hidden=!available||postponedUpdate===value.version;
+        $('updateHomeNotes').hidden=!value.notes;$('updateHomeNotes').textContent=value.notes||'';
         document.querySelector('nav button[data-view=settings]').setAttribute('aria-label',available?'設定（新しい版があります）':'設定');
         $('latestVersion').hidden=false;$('latestVersion').textContent='確認できた配信版：'+value.version;
         $('updateCheckedAt').textContent='最終確認：'+new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date());
@@ -485,6 +491,8 @@
   for(const [id,delta] of [['prevMonth',-1],['nextMonth',1]])$(id).onclick=()=>guard(()=>{const [y,m]=cursor.split('-').map(Number);cursor=new Date(Date.UTC(y,m-1+delta,1)).toISOString().slice(0,7);selectedDay=null;renderCalendar();});
   $('checkUpdates').onclick=()=>checkUpdates(true);
   $('applyUpdate').onclick=applyUpdate;
+  $('homeApplyUpdate').onclick=applyUpdate;
+  $('homeLaterUpdate').onclick=()=>{postponedUpdate=latestRelease?.version??null;$('updateHomeNotice').hidden=true;};
   for(const id of ['reminderExport','homeReminderExport'])$(id).onclick=()=>guard(exportJson);
   for(const id of ['snoozeBackup','homeSnoozeBackup'])$(id).onclick=()=>{if(M&&backupMeta){backupMeta=M.snooze(backupMeta);const stored=persistBackupMeta();renderBackupStatus();backupResult(backupDate(backupMeta.snoozedUntil)+'まで案内を休止します。設定から再開できます。'+(stored?'':'この休止設定を端末に記憶できませんでした。'));}};
   $('resumeBackup').onclick=()=>{if(M&&backupMeta){backupMeta={...backupMeta,snoozedUntil:null};const stored=persistBackupMeta();renderBackupStatus();backupResult('バックアップの案内を再開しました。'+(stored?'':'この設定を端末に記憶できませんでした。'));}};

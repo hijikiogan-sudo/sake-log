@@ -1,6 +1,6 @@
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.KanMaintenance=factory();})(typeof window!=='undefined'?window:this,function(){
   'use strict';
-  const VERSION='2026-10-24-picker',BACKUP_KEY='kanlog_backup_meta_v1',DAY=86400000;
+  const VERSION='2026-10-24-notice',BACKUP_KEY='kanlog_backup_meta_v1',DAY=86400000;
   function backupMeta(raw,when=Date.now()){
     let value={};try{const parsed=JSON.parse(raw);if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))value=parsed;}catch(_){}
     const past=x=>typeof x==='string'&&Number.isFinite(Date.parse(x))&&Date.parse(x)<=when+60000;
@@ -11,6 +11,10 @@
   }
   function exported(meta,when=Date.now()){return {...meta,lastExportAt:new Date(when).toISOString(),snoozedUntil:null};}
   function snooze(meta,when=Date.now()){return {...meta,snoozedUntil:new Date(when+7*DAY).toISOString()};}
-  function release(value){return value&&typeof value==='object'&&typeof value.version==='string'&&/^[A-Za-z0-9._-]{1,80}$/.test(value.version)?{version:value.version}:null;}
+  function release(value){
+    if(!value||typeof value!=='object'||typeof value.version!=='string'||!/^[A-Za-z0-9._-]{1,80}$/.test(value.version))return null;
+    // Optional one-line summary shown with the update notice.
+    return typeof value.notes==='string'&&value.notes.trim()&&value.notes.length<=200?{version:value.version,notes:value.notes.trim()}:{version:value.version};
+  }
   return {VERSION,BACKUP_KEY,backupMeta,backupDue,exported,snooze,release};
 });

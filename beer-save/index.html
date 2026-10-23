@@ -7,15 +7,15 @@
 <title>缶ログ｜缶のお酒を、かんたん記録。</title>
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./kanlog.css?v=kanlog-20261024-picker">
-<script defer src="./beer-catalog.js?v=kanlog-20261024-picker"></script>
-<script defer src="./beer-core.js?v=kanlog-20261024-picker"></script>
-<script defer src="./beer-store.js?v=kanlog-20261024-picker"></script>
-<script defer src="./beer-recognition.js?v=kanlog-20261024-picker"></script>
-<script defer src="./beer-live-barcode.js?v=kanlog-20261024-picker"></script>
-<script defer src="./beer-camera-ui.js?v=kanlog-20261024-picker"></script>
-<script defer src="./kanlog-maintenance.js?v=kanlog-20261024-picker"></script>
-<script defer src="./kanlog-app.js?v=kanlog-20261024-picker"></script>
+<link rel="stylesheet" href="./kanlog.css?v=kanlog-20261024-notice">
+<script defer src="./beer-catalog.js?v=kanlog-20261024-notice"></script>
+<script defer src="./beer-core.js?v=kanlog-20261024-notice"></script>
+<script defer src="./beer-store.js?v=kanlog-20261024-notice"></script>
+<script defer src="./beer-recognition.js?v=kanlog-20261024-notice"></script>
+<script defer src="./beer-live-barcode.js?v=kanlog-20261024-notice"></script>
+<script defer src="./beer-camera-ui.js?v=kanlog-20261024-notice"></script>
+<script defer src="./kanlog-maintenance.js?v=kanlog-20261024-notice"></script>
+<script defer src="./kanlog-app.js?v=kanlog-20261024-notice"></script>
 </head>
 <body>
 <main class="app">
@@ -25,6 +25,7 @@
 
 <section id="homeView" aria-label="ホーム">
 <div id="sessionReminder" class="notice" hidden>前回の飲酒が終了未記録です。<br><button id="reviewActive" class="textButton">終了時刻を確認・修正する</button></div>
+<div id="updateHomeNotice" class="notice" role="status" hidden><b>新しい版があります</b><p id="updateHomeNotes" class="hint" hidden></p><button id="homeApplyUpdate">今すぐ更新</button> <button id="homeLaterUpdate" class="textButton">あとで</button></div>
 <div class="controlCard">
 <div class="controlTop"><p class="eyebrow">今日の、ひと缶。</p><span id="sessionBadge" class="sessionBadge">飲酒前</span></div>
 <div class="selection"><p id="selectedName" class="productName">いつものお酒を<br>選びましょう</p><div class="selectionMeta"><p id="selectedFacts" class="productFacts">まずは銘柄を登録してください</p><button id="chooseProduct" class="change">銘柄変更</button></div></div>
