@@ -18,11 +18,18 @@
     if (typeof s !== 'string' || s.length > 300 || (!optional && !s.trim())) fail(label+'を確認してください');
     return s.trim();
   }
+  // Rendering asks for the same record days many times; Date parsing dominates
+  // with years of history. Only validated results are cached.
+  const dayKeyCache=new Map();
   function dayKey(timestamp,dayStartHour=0) {
+    const cacheKey=typeof timestamp==='string'&&Number.isInteger(dayStartHour)?dayStartHour+'|'+timestamp:null;
+    if(cacheKey!==null&&dayKeyCache.has(cacheKey))return dayKeyCache.get(cacheKey);
     if(!Number.isInteger(dayStartHour)||dayStartHour<0||dayStartHour>23)fail('区切り時刻は0〜23時で指定してください');
     const time = Date.parse(timestamp);
     if (!Number.isFinite(time)) fail('日時が不正です');
-    return new Date(time+(9-dayStartHour)*3600000).toISOString().slice(0,10);
+    const key=new Date(time+(9-dayStartHour)*3600000).toISOString().slice(0,10);
+    if(cacheKey!==null){if(dayKeyCache.size>=50000)dayKeyCache.clear();dayKeyCache.set(cacheKey,key);}
+    return key;
   }
   function validDay(key) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || !Number.isFinite(Date.parse(key+'T00:00:00+09:00')) || dayKey(key+'T00:00:00+09:00')!==key) fail('日付が不正です');
@@ -118,8 +125,10 @@
       if(d.allocation==='included') included[key]=(included[key]||0)+1;
       r.drinks.push({id:did,productId:pid,dayStartHour,sessionId,snapshot,pureAlcoholGrams:pure(snapshot),purchasePriceYen:number(d.purchasePriceYen,'購入価格',0,1e9,true),startedAt,finishedAt,allocation:d.allocation,recordMethod:method(d.recordMethod,['manual','camera'],'manual'),verificationStatus:method(d.verificationStatus,['user-confirmed','dictionary-confirmed'],'user-confirmed'),createdAt:time(d.createdAt),updatedAt:time(d.updatedAt)});
     }
+    const bySession=new Map();
+    for(const d of r.drinks)if(d.sessionId!==null){if(!bySession.has(d.sessionId))bySession.set(d.sessionId,[]);bySession.get(d.sessionId).push(d);}
     for(const s of r.sessions){
-      const members=r.drinks.filter(d=>d.sessionId===s.id);if(!members.length)fail('記録のないセッションです');
+      const members=bySession.get(s.id)||[];if(!members.length)fail('記録のないセッションです');
       for(const d of members){
         if(Date.parse(d.startedAt)<Date.parse(s.startedAt))fail('セッション開始前の記録です');
         if(d.finishedAt!==s.finishedAt)fail('セッションと終了時刻が一致しません');
@@ -152,12 +161,18 @@
   }
   function keys(state) {return [...new Set([...Object.keys(state.countOnlyRecords),...state.drinks.map(d=>recordDay(d))])].sort();}
   function aggregate(state,predicate=()=>true) {
-    const details=state.drinks.filter(d=>predicate(recordDay(d)));
-    const unknown=Object.entries(state.countOnlyRecords).filter(([k])=>predicate(k)).reduce((s,[key,n])=>s+n-details.filter(d=>d.allocation==='included'&&recordDay(d)===key).length,0);
+    // One pass over drinks: per-day tallies replace repeated full scans.
+    const details=[],included={},additional={};
+    for(const d of state.drinks){
+      const key=recordDay(d);if(!predicate(key))continue;
+      details.push(d);const tally=d.allocation==='included'?included:additional;tally[key]=(tally[key]||0)+1;
+    }
+    const countKeys=Object.keys(state.countOnlyRecords).filter(predicate);
+    const unknown=countKeys.reduce((s,key)=>s+state.countOnlyRecords[key]-(included[key]||0),0);
     const sum=field=>({value:details.reduce((s,d)=>s+(field(d)??0),0),unknown:unknown+details.filter(d=>field(d)===null).length});
     const alcohol=sum(d=>d.pureAlcoholGrams),calories=sum(d=>d.snapshot.caloriesKcal),spending=sum(d=>d.purchasePriceYen);
-    const allKeys=keys(state).filter(predicate),count=details.length+unknown;
-    const dayCount=key=>(state.countOnlyRecords[key]||0)+state.drinks.filter(d=>recordDay(d)===key&&d.allocation==='additional').length;
+    const allKeys=[...new Set([...countKeys,...Object.keys(included),...Object.keys(additional)])],count=details.length+unknown;
+    const dayCount=key=>(state.countOnlyRecords[key]||0)+(additional[key]||0);
     const savings=allKeys.reduce((s,key)=>s+Math.max(0,state.settings.baseline-dayCount(key))*state.settings.price,0);
     return {count,unknownDetails:unknown,alcohol,calories,spending,beerEquivalent:alcohol.value/14,savings,recordedDays:allKeys.length};
   }

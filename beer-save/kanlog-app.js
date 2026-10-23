@@ -20,6 +20,9 @@
   let duplicateCacheKey=null,duplicateCache=[];
   let duplicatePair=null,noticeDismissed=false,noticeTimer=null;
   let imported=null,undo=null,blocked=false,busyUntil=0,currentView='home',cursor=null,selectedDay=null;
+  // Years of history render in pages so startup and saving stay quick.
+  const HISTORY_PAGE=30,SESSION_PAGE=20;
+  let historyLimit=HISTORY_PAGE,sessionLimit=SESSION_PAGE;
   function renderFeedback(){
     const slot=$(currentView==='home'?'homeFeedbackSlot':'globalFeedbackSlot');
     if($('feedback').parentElement!==slot)slot.append($('feedback'));
@@ -209,9 +212,13 @@
     const missing=state.drinks.filter(d=>d.purchasePriceYen===null).length;
     $('missingPriceCount').textContent=missing?'価格未入力の記録が'+missing+'本あります。':'価格未入力の記録はありません。';
     $('bulkPrices').disabled=blocked||!missing;
-    const days=[...new Set([...Object.keys(state.countOnlyRecords),...state.drinks.map(B.recordDay)])].sort().reverse();
-    $('history').innerHTML=days.length?days.map(day=>{const a=B.aggregate(state,k=>k===day);return `<div class="historyDay"><div class="row"><h3>${esc(day)} · ${a.count}本</h3><button class="textButton" data-count="${day}">本数を修正</button></div>${a.unknownDetails?'<p class="hint">本数のみ '+a.unknownDetails+'本。商品・アルコール量は未確認です。</p>':''}<div class="timeline">${timeline(state.drinks.filter(d=>B.recordDay(d)===day))}</div></div>`;}).join(''):'<p class="empty">記録したお酒は、ここに並びます。</p>';
-    $('sessionHistory').innerHTML=state.sessions.length?[...state.sessions].sort((a,b)=>b.startedAt.localeCompare(a.startedAt)).map(s=>`<details class="sessionItem"><summary>${esc(stamp(s.startedAt,true))}から · ${B.sessionSummary(state,s.id).count}本 · ${s.finishedAt?'終了':'終了未記録'}</summary>${sessionHTML(s)}<p class="hint">${s.finishedAt?'飲酒終了 '+esc(stamp(s.finishedAt,true)):'終了日時はまだ保存されていません。'}</p><button data-session="${esc(s.id)}">開始・終了日時を修正</button></details>`).join(''):'<p class="hint">旧記録は日別履歴に保持しています。セッションは推測で作りません。</p>';
+    const byDay=new Map();
+    for(const d of state.drinks){const key=B.recordDay(d);if(!byDay.has(key))byDay.set(key,[]);byDay.get(key).push(d);}
+    const days=[...new Set([...Object.keys(state.countOnlyRecords),...byDay.keys()])].sort().reverse();
+    const moreDays=days.length>historyLimit?`<button class="wide subtle" data-more="history">さらに${Math.min(HISTORY_PAGE,days.length-historyLimit)}日分を表示（残り${days.length-historyLimit}日）</button>`:'';
+    $('history').innerHTML=days.length?days.slice(0,historyLimit).map(day=>{const a=B.aggregate(state,k=>k===day);return `<div class="historyDay"><div class="row"><h3>${esc(day)} · ${a.count}本</h3><button class="textButton" data-count="${day}">本数を修正</button></div>${a.unknownDetails?'<p class="hint">本数のみ '+a.unknownDetails+'本。商品・アルコール量は未確認です。</p>':''}<div class="timeline">${timeline(byDay.get(day)||[])}</div></div>`;}).join('')+moreDays:'<p class="empty">記録したお酒は、ここに並びます。</p>';
+    const moreSessions=state.sessions.length>sessionLimit?`<button class="wide subtle" data-more="sessions">さらに表示（残り${state.sessions.length-sessionLimit}件）</button>`:'';
+    $('sessionHistory').innerHTML=state.sessions.length?[...state.sessions].sort((a,b)=>b.startedAt.localeCompare(a.startedAt)).slice(0,sessionLimit).map(s=>`<details class="sessionItem"><summary>${esc(stamp(s.startedAt,true))}から · ${B.sessionSummary(state,s.id).count}本 · ${s.finishedAt?'終了':'終了未記録'}</summary>${sessionHTML(s)}<p class="hint">${s.finishedAt?'飲酒終了 '+esc(stamp(s.finishedAt,true)):'終了日時はまだ保存されていません。'}</p><button data-session="${esc(s.id)}">開始・終了日時を修正</button></details>`).join('')+moreSessions:'<p class="hint">旧記録は日別履歴に保持しています。セッションは推測で作りません。</p>';
     $('countDay').max=B.currentDay(state);
   }
   function renderAnalysis(){
@@ -357,6 +364,8 @@
       if(button.dataset.productDelete)commit(B.archiveProduct(state,button.dataset.productDelete),'銘柄を一覧から削除しました。過去の飲酒記録は残っています。「削除した銘柄」から元に戻せます。','銘柄を一覧から削除しました');
       if(button.dataset.productRestore)commit(B.archiveProduct(state,button.dataset.productRestore,false),'銘柄を一覧に戻しました。');
       if(button.dataset.session)openSession(button.dataset.session);
+      if(button.dataset.more==='history'){historyLimit+=HISTORY_PAGE;renderHistory();}
+      if(button.dataset.more==='sessions'){sessionLimit+=SESSION_PAGE;renderHistory();}
       if(button.dataset.day){selectedDay=button.dataset.day;renderCalendar();}
       if(button.dataset.count){$('countDay').value=button.dataset.count;$('dayCount').value=B.aggregate(state,k=>k===button.dataset.count).count;$('countForm').closest('details').open=true;$('countForm').scrollIntoView({block:'center'});}
     });
