@@ -242,7 +242,7 @@
     for(const d of state.drinks){const key=B.recordDay(d);if(!byDay.has(key))byDay.set(key,[]);byDay.get(key).push(d);}
     const days=[...new Set([...Object.keys(state.countOnlyRecords),...byDay.keys()])].sort().reverse();
     const moreDays=days.length>historyLimit?`<button class="wide subtle" data-more="history">さらに${Math.min(HISTORY_PAGE,days.length-historyLimit)}日分を表示（残り${days.length-historyLimit}日）</button>`:'';
-    $('history').innerHTML=days.length?days.slice(0,historyLimit).map(day=>{const a=B.aggregate(state,k=>k===day);return `<div class="historyDay"><div class="row"><h3>${esc(day)} · ${a.count}本</h3><button class="textButton" data-count="${day}">本数を修正</button></div>${a.unknownDetails?'<p class="hint">本数のみ '+a.unknownDetails+'本。商品・アルコール量は未確認です。</p>':''}<div class="timeline">${timeline(byDay.get(day)||[])}</div></div>`;}).join('')+moreDays:'<p class="empty">記録したお酒は、ここに並びます。</p>';
+    $('history').innerHTML=days.length?days.slice(0,historyLimit).map(day=>{const a=B.aggregate(state,k=>k===day);return `<div class="historyDay"><div class="row"><h3>${esc(day)} · ${a.count}本</h3>${usesCountOnly()?`<button class="textButton" data-count="${day}">本数を修正</button>`:''}</div>${a.unknownDetails?'<p class="hint">本数のみ '+a.unknownDetails+'本。商品・アルコール量は未確認です。</p>':''}<div class="timeline">${timeline(byDay.get(day)||[])}</div></div>`;}).join('')+moreDays:'<p class="empty">記録したお酒は、ここに並びます。</p>';
     const moreSessions=state.sessions.length>sessionLimit?`<button class="wide subtle" data-more="sessions">さらに表示（残り${state.sessions.length-sessionLimit}件）</button>`:'';
     $('sessionHistory').innerHTML=state.sessions.length?[...state.sessions].sort((a,b)=>b.startedAt.localeCompare(a.startedAt)).slice(0,sessionLimit).map(s=>`<details class="sessionItem"><summary>${esc(stamp(s.startedAt,true))}から · ${B.sessionSummary(state,s.id).count}本 · ${s.finishedAt?'終了':'終了未記録'}</summary>${sessionHTML(s)}<p class="hint">${s.finishedAt?'飲酒終了 '+esc(stamp(s.finishedAt,true)):'終了日時はまだ保存されていません。'}</p><button data-session="${esc(s.id)}">開始・終了日時を修正</button></details>`).join('')+moreSessions:'<p class="hint">旧記録は日別履歴に保持しています。セッションは推測で作りません。</p>';
     $('countDay').max=B.currentDay(state);
@@ -270,6 +270,17 @@
     $('calendar').innerHTML=html;
     $('calendarDetail').innerHTML=selectedDay?`<h3 style="margin-top:14px">${selectedDay} · ${B.aggregate(state,k=>k===selectedDay).count}本</h3>`+timeline(state.drinks.filter(d=>B.recordDay(d)===selectedDay)):'';
   }
+  // Features kept for data from earlier versions. New users never see them;
+  // anyone with such data (or who has used them) keeps full access.
+  function hasLegacyData(){return localStorage.getItem(S?.OLD_KEY||'beer_save_pwa_v1')!==null||!!state.legacyRaw||!!state.originLegacyRaw;}
+  function usesSavings(){return hasLegacyData()||['baseline','target','price'].some(k=>state.settings[k]!==B.DEFAULTS[k]);}
+  function usesCountOnly(){return hasLegacyData()||Object.keys(state.countOnlyRecords).length>0;}
+  function renderLegacyFeatures(){
+    const savings=usesSavings();
+    $('savingsCard').hidden=!savings;$('settingsForm').hidden=!savings;
+    $('daySettingsTitle').textContent=savings?'1日の区切り・以前の節約設定':'1日の区切り';
+    $('countCard').hidden=!usesCountOnly();$('legacyTools').hidden=!hasLegacyData();
+  }
   function renderSettings(){
     const products=availableProducts(),archived=state.products.filter(p=>p.archived);
     $('productList').innerHTML=products.length?products.map(p=>`<div class="productRow"><div><strong>${nameHTML(p.productName)}</strong><small>${p.volumeMl}mL / ${p.alcoholPercent}%<br>参考単価 ${p.referencePriceYen===null?'未入力':money(p.referencePriceYen)}</small></div><div class="productActions"><button data-product-edit="${esc(p.id)}" class="write">編集</button><button data-product-delete="${esc(p.id)}" class="write danger" aria-label="${esc(productLabel(p))}を一覧から削除">削除</button></div></div>`).join(''):'<p class="hint">選べる銘柄はありません。新しく登録するか、削除した銘柄を元に戻せます。</p>';
@@ -290,7 +301,7 @@
   function render(){
     if(!state)return;
     if(!availableProducts().some(p=>p.id===selectedId))selectedId=B.recentProducts(state)[0]?.id||availableProducts()[0]?.id||null;
-    renderHome();renderHistory();renderAnalysis();renderSettings();renderPicker();
+    renderHome();renderHistory();renderAnalysis();renderSettings();renderPicker();renderLegacyFeatures();
     for(const el of document.querySelectorAll('.write'))if(blocked)el.disabled=true;
   }
   function openDuplicate(index){
