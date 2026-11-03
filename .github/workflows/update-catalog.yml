@@ -34,11 +34,11 @@ jobs:
       - name: Collect from official sites
         run: python3 tools/catalog/update_catalog.py --report "$RUNNER_TEMP/report.json" --summary "$RUNNER_TEMP/summary.md"
 
-      - name: Open a pull request when products were added or changed
+      - name: Open a pull request when products were added or updated
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          count=$(python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); print(len(r["added"])+len(r["changed"]))' "$RUNNER_TEMP/report.json")
+          count=$(python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); print(len(r["added"])+len(r["changed"])+len(r.get("updated",[])))' "$RUNNER_TEMP/report.json")
           if [ "$count" = "0" ]; then
             echo "No new or changed products; nothing to propose."
             exit 0

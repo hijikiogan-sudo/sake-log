@@ -48,8 +48,13 @@
     for(const p of all){const code=jan(p.janCode);if(code){if(!savedByJan.has(code))savedByJan.set(code,[]);savedByJan.get(code).push(p);}}
     for(const p of catalog){
       // A saved copy of the same catalog entry is one candidate. Conflicting user entries remain distinct.
-      const saved=(savedByJan.get(jan(p.janCode))||[]).find(q=>q.productName===p.productName&&q.volumeMl===p.volumeMl&&q.alcoholPercent===p.alcoholPercent&&q.revision===p.revision&&q.caloriesKcal===p.caloriesKcal&&q.category===p.category);
-      if(saved)Object.assign(saved,{aliases:p.aliases,excludeTokens:p.excludeTokens,ocrAliases:p.ocrAliases,catalog:true,requiresConfirmation:!!p.requiresConfirmation});else all.push(p);
+      // Calories and category are descriptive: a catalog backfill or correction of them must not
+      // split the user's product, so the user's values win and only a missing calorie is filled in.
+      const saved=(savedByJan.get(jan(p.janCode))||[]).find(q=>q.productName===p.productName&&q.volumeMl===p.volumeMl&&q.alcoholPercent===p.alcoholPercent&&q.revision===p.revision);
+      if(saved){
+        Object.assign(saved,{aliases:p.aliases,excludeTokens:p.excludeTokens,ocrAliases:p.ocrAliases,catalog:true,requiresConfirmation:!!p.requiresConfirmation});
+        if(saved.caloriesKcal==null&&p.caloriesKcal!=null)saved.caloriesKcal=p.caloriesKcal;
+      }else all.push(p);
     }
     return all;
   }
