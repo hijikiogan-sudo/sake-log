@@ -1,29 +1,30 @@
 # HANDOFF — 缶ログ・酒ログ
 更新：2026-11-03 JST
 引渡し元：Claude Code／次の担当：未指定
-編集状態：辞書更新の仕組みを作成・辞書を更新済み（コミット・push済み、gh-pages未反映）
+編集状態：辞書更新・公開・毎月の自動実行の設置まで完了（作業区切り）
 作業ルート：.（ローカル保存先は導入一覧を参照）
 Gitブランチ：claude/canned-alcohol-app-review-jo7w7y
-HEAD：0b46e78c4427d11644139ecf0ad6ece6e3a94eb8（origin と一致。このHANDOFF修正のみ未コミット）
+HEAD：3890aa33ffcad9ccb91a4728938403ceed4f330e（origin と一致。このHANDOFF修正のみ未コミット）。gh-pages：999d8a5
 
 ## 現在の作業
-- バーコード商品辞書（beer-save/beer-catalog.js）を公式サイトから集め直す仕組みを tools/catalog/ に作成し、実行した。
+- バーコード商品辞書（beer-save/beer-catalog.js）を公式サイトから集め直す仕組みを tools/catalog/ に作成し、公開・自動化まで行った。
 ## 完了・未完了
 - 完了：収集スクリプト（アサヒ・キリン・宝酒造は自動、サッポロは公式にJANがないため手作業扱い、サントリーは403、サンガリアは画像PDF）。使い方は tools/catalog/README.md。
 - 完了：辞書 504→520件（アサヒ13・宝3を追加）。既存504件は1バイトも変えていない（revision一致が必要なため）。
-- 未決定：サッポロ「麦とホップ」「GOLD STAR」が公式ではビール分類・カロリー変更。辞書へ反映するか未決定。
+- 完了：版 2026-11-03-catalog（辞書520件・お知らせ付き）を gh-pages に公開（877e567、Pages 反映確認済み）。
+- 完了：毎月1日9時(JST)の GitHub Actions「Update barcode catalog」を gh-pages の .github/workflows/update-catalog.yml に設置（999d8a5）。追加・変更があれば開発ブランチ向けPRを作る。公開はしない。リポジトリ設定でActionsのPR作成を許可済み。
+- 決定済み：サッポロ「麦とホップ」「GOLD STAR」（公式ではビール分類・カロリー変更）は辞書を変えず現状維持（2026-11-03）。
 - 制約：キリンは改訂番号付きURLでしか開けない商品ページが79件あり、新商品を取りこぼす可能性あり（今回キリン新商品0件）。
-- 未実施：定期実行（GitHub Actions等）、公開（gh-pages）、iOS版への反映。
+- 未実施：iOS版への辞書反映（アプリの作り直しが必要）。PR作成の経路はまだ一度も動いていない（初回は変更0件のため）。
 ## 次の具体的作業
-1. 版 2026-11-03-catalog（辞書520件・お知らせ付き）を gh-pages に公開する（ユーザー承認済み 2026-11-03）。
-2. 毎月の GitHub Actions（gh-pages の .github/workflows/update-catalog.yml）を置く。workflow 権限とリポジトリ設定が必要。
-- 決定済み：サッポロ2商品は公式に合わせず現状維持（2026-11-03）。
+1. 12/1 の自動実行の結果（PRの有無・内容）を確認し、問題なければマージ→必要に応じて gh-pages へ公開。
 ## 変更ファイル・未コミット変更
-- コミット 0b46e78：beer-save/beer-catalog.js（16件追加・autoUpdate更新）、tools/catalog/ 一式、docs/HANDOFF.md
+- コミット 0b46e78：辞書（16件追加）と tools/catalog/ 一式。3890aa3：版上げ・--summary・README。gh-pages 877e567：公開、999d8a5：ワークフロー
 - 未コミット：docs/HANDOFF.md（この状態更新のみ）
 ## 検証
 - 今回：全社をキャッシュで再実行し、追加16・変更0・既存不変を確認。Web版で520件の読み込みと新旧JANの照合を確認。
+- 今回：GitHub Actions を手動実行（run 41566914078）。アサヒ87・キリン126・宝58件をエラー0で取得、追加・変更0でPRなし、約30分。
 - 今回：Simulatorで登録・記録・再起動後の保持・JSON保存の共有シートを確認。カメラ読み取りは未確認（実機のみ）。
 - 注意：localhost:8765 は別作業（お遍路クエスト）のサーバーと重なることがある。127.0.0.1 を指定して確認した。
 ## 必要な参照先
-- `tools/catalog/README.md`（実行方法・更新ルール）、`ios/README.md` の関連節。
+- `tools/catalog/README.md`（実行方法・更新ルール・自動実行）、`ios/README.md` の関連節。
