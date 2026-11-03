@@ -176,12 +176,41 @@ def auto_update(previous, results, today):
     return {"checkedOn": today, "frequency": "manual", "partial": partial, "sources": sources}
 
 
+STATUS_JA = {"ok": "取得できた", "partial": "一部取得できず", "empty": "0件", "unavailable": "取得できず",
+             "failed": "処理エラー", "manual": "手作業"}
+
+
+def summary_markdown(catalog, report, before):
+    lines = [f"商品辞書を公式サイトから集め直しました（{catalog['autoUpdate']['checkedOn']}）。", "",
+             f"- 件数：{before} → {len(catalog['products'])}",
+             f"- 追加：{len(report['added'])}件 / 値の変更：{len(report['changed'])}件 / 変更なし：{report['unchanged']}件",
+             f"- 今回見つからなかった既存商品（辞書には残す）：{len(report['notFound'])}件", ""]
+    if report["added"]:
+        lines += ["## 追加", "", "| JAN | メーカー | 商品名 | 容量 | 度数 | kcal | 分類 |", "|---|---|---|---|---|---|---|"]
+        lines += [f"| {e['janCode']} | {e['manufacturer']} | {e['productName']} | {e['volumeMl']}ml | "
+                  f"{e['alcoholPercent']}% | {e['caloriesKcal'] if e['caloriesKcal'] is not None else '—'} | {e['category']} |"
+                  for e in report["added"]]
+        lines.append("")
+    if report["changed"]:
+        lines += ["## 値の変更（保存済みの人には新旧2つの候補が出ます）", ""]
+        lines += [f"- {c['janCode']} {c['productName']}：" + "、".join(f"{k} {a} → {b}" for k, (a, b) in c["diffs"].items())
+                  for c in report["changed"]]
+        lines.append("")
+    lines += ["## メーカーごとの状況", ""]
+    for info in catalog["autoUpdate"]["sources"].values():
+        extra = f"（{info['verifiedRecords']}件）" if "verifiedRecords" in info else ""
+        lines.append(f"- {info['manufacturer']}：{STATUS_JA.get(info['status'], info['status'])}{extra}")
+    lines += ["", "マージ前に、追加された商品を何件か公式ページと見比べてください。公開（gh-pages への反映）は別に行います。", ""]
+    return "\n".join(lines)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--only", help="comma-separated sources: " + ",".join(SOURCES + OPTIONAL))
     parser.add_argument("--dry-run", action="store_true", help="report changes without writing the catalog")
     parser.add_argument("--cache", help="directory for cached pages (re-runs without hitting the sites)")
     parser.add_argument("--report", help="write a JSON report of the run to this path")
+    parser.add_argument("--summary", help="write a Markdown summary (in Japanese, for a pull request) to this path")
     args = parser.parse_args()
     names = args.only.split(",") if args.only else SOURCES
     unknown = [n for n in names if n not in SOURCES + OPTIONAL]
@@ -216,6 +245,8 @@ def main():
             "added": report["added"], "changed": report["changed"],
             "notFound": [{"janCode": p["janCode"], "productName": p["productName"]} for p in report["notFound"]],
         }, ensure_ascii=False, indent=1), encoding="utf-8")
+    if args.summary:
+        Path(args.summary).write_text(summary_markdown(catalog, report, before), encoding="utf-8")
     if args.dry_run:
         print("dry run: catalog not written")
         return

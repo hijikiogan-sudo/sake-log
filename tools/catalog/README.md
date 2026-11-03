@@ -23,12 +23,20 @@ python3 tools/catalog/update_catalog.py
 | `--only asahi,kirin` | 指定したメーカーだけ集める（asahi / kirin / takara。sapporo は指定したときだけ動く） |
 | `--cache フォルダ` | 取得したページを保存し、2回目以降はサイトにアクセスしない（調整用） |
 | `--report ファイル.json` | 追加・変更・見つからなかった商品を JSON で書き出す |
+| `--summary ファイル.md` | 結果の要約を日本語の Markdown で書き出す（PR の本文に使う） |
 
 全メーカーで数十分かかります。サイトに負担をかけないよう、同じサイトへのアクセスは1.5秒以上あけています。
 
-## 目安の頻度
+## 毎月の自動実行（GitHub Actions）
 
-月に1回程度。新商品の発売が多い時期（春・秋）は、その前後にも実行するとよいです。
+毎月1日の9時（日本時間）に、GitHub Actions がこのスクリプトを実行します。商品の追加や値の変更があったときだけ、開発ブランチ向けのPR（商品辞書の更新）を作ります。
+
+- ワークフローのファイルは **gh-pages ブランチ**の `.github/workflows/update-catalog.yml` にあります。GitHub の毎月の自動実行は既定ブランチ（このリポジトリでは gh-pages）にあるファイルでしか動かないためです
+- GitHub の Actions 画面で「Update barcode catalog」→「Run workflow」を押せば、すぐに実行することもできます
+- PR をマージしても公開はされません。公開（gh-pages への反映）は別に行います
+- リポジトリ設定の「Allow GitHub Actions to create and approve pull requests」が有効になっている必要があります
+
+新商品の発売が多い時期（春・秋）は、手で実行してもかまいません。
 
 ## 辞書の更新ルール
 
