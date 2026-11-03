@@ -1,0 +1,55 @@
+# Monthly refresh of the barcode catalog (beer-save/beer-catalog.js).
+# Scheduled workflows only run from the default branch (gh-pages), so this
+# file lives there, while the work happens on the development branch.
+# It never publishes: it opens a pull request against the development branch.
+name: Update barcode catalog
+
+on:
+  schedule:
+    - cron: "0 0 1 * *" # 1st of every month, 09:00 JST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency: update-catalog
+
+env:
+  DEV_BRANCH: claude/canned-alcohol-app-review-jo7w7y
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEV_BRANCH }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Collect from official sites
+        run: python3 tools/catalog/update_catalog.py --report "$RUNNER_TEMP/report.json" --summary "$RUNNER_TEMP/summary.md"
+
+      - name: Open a pull request when products were added or changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          count=$(python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); print(len(r["added"])+len(r["changed"]))' "$RUNNER_TEMP/report.json")
+          if [ "$count" = "0" ]; then
+            echo "No new or changed products; nothing to propose."
+            exit 0
+          fi
+          branch="catalog-update-$(date -u +%Y-%m-%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add beer-save/beer-catalog.js
+          git commit -m "Refresh the barcode catalog from official sites"
+          git push origin "$branch"
+          gh pr create --base "$DEV_BRANCH" --head "$branch" \
+            --title "商品辞書の更新（$(date -u +%Y-%m-%d)）" \
+            --body-file "$RUNNER_TEMP/summary.md"
