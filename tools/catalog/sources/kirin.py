@@ -21,6 +21,27 @@ JavaScript age gate, so they are not used. Instead:
    family.
 4. Codes already referenced by beer-save/beer-catalog.js are added as extra
    seeds so older or seasonal items are re-checked too.
+5. https://products.kirin.co.jp/parts/products.php (the "new products" strip
+   of www.kirin.co.jp) adds the codes of the newest items.
+6. New products get new, increasing internal codes, and the product list API
+   often lags behind them. So after the seed pass the collector walks forward
+   from the highest live code of the beer/RTD range until a long run of unused
+   codes. Each month this costs about FORWARD_MISSES requests plus one per new
+   code, and finds cans no list mentions yet.
+
+Why many listed codes fail
+--------------------------
+The www product list keeps showing items after outer1 has withdrawn them:
+seasonal/limited cans whose sales period ended (氷結 もも, 秋味, 麒麟特製 和梨…),
+renamed products (本麒麟（発泡酒） became 本麒麟（ビール） under a new code) and
+imported/craft items the partner catalog does not carry. outer1 then answers
+"該当の商品は存在しません" for the bare code and for every ``_NNN`` revision
+(checked _000-_015 on samples), so a revision probe does not help. The bare
+code fails for a few live items whose newest revision is not public yet
+(のどごし<生>: bare fails, _014 works); those stay reachable through the
+revision recorded in the existing catalog. outer1's own search (/kirin/search)
+only accepts POST form submissions, and the products.kirin.co.jp detail pages
+sit behind an age gate, so neither is used.
 """
 import json
 import re
@@ -48,6 +69,14 @@ EXISTING_CATALOG = Path(__file__).resolve().parents[3] / "beer-save" / "beer-cat
 
 SCAN_LIMIT = 6        # max distance from a seed code
 SCAN_MISSES = 1       # tolerated non-family / missing codes in a row
+NEW_API = "https://products.kirin.co.jp/parts/products.php"
+# Forward walk past the newest live code. Published codes are sparse (a gap of
+# ~80 unused codes was seen between two new items), so the stop rule is generous.
+FORWARD_RANGE = (10000, 100000)   # beer / RTD / highball codes; wine etc. use 4xxxxx
+FORWARD_MISSES = 120              # stop after this many missing codes in a row
+FORWARD_LIMIT = 600               # hard cap on codes walked forward per run
+RECENT_WINDOW = 400               # seeds this close to the newest seed code...
+RECENT_MISSES = 3                 # ...tolerate this many gaps when scanning neighbours
 SIZE_RE = re.compile(r"\s*\d+(?:\.\d+)?\s*ml.*$", re.I)
 DISCONTINUED_RE = re.compile(r"販売終了|終売|製造終了")
 
@@ -251,6 +280,17 @@ def collect(fetcher, log=print):
                         seeds[m.group(1)] = {"brand": brand, "scan": True}
     if not api_ok:
         log("kirin: product list API unavailable; falling back to known codes only")
+    try:  # "new products" strip: [{"soft": [...], "alc": [{"img": ..., "name": ...}]}]
+        data = json.loads(fetcher.get_text(NEW_API))
+        for group in data if isinstance(data, list) else []:
+            for item in (group or {}).get("alc") or []:
+                m = re.search(r"/images/(\d{6})", item.get("img") or "")
+                if m:
+                    seeds.setdefault(m.group(1), {"brand": "", "scan": True})
+    except common.Blocked:
+        raise
+    except Exception as e:  # noqa: BLE001
+        page_errors.append({"url": NEW_API, "error": str(e)[:200]})
     known = existing_codes()
     for code in sorted(known):
         seeds.setdefault(code, {"brand": "", "scan": True})
@@ -281,6 +321,10 @@ def collect(fetcher, log=print):
             log(f"kirin: {len(pages)} detail pages checked")
         return pages[code]
 
+    lo, hi = FORWARD_RANGE
+    in_range = [int(c) for c in seeds if lo <= int(c) < hi]
+    recent_floor = (max(in_range) - RECENT_WINDOW) if in_range else hi
+
     owner = {}  # code -> brand of the seed that reached it
     for code in sorted(seeds):
         seed = seeds[code]
@@ -291,6 +335,10 @@ def collect(fetcher, log=print):
         if "缶" not in info["container"] or not seed["scan"]:
             continue
         fam = family(info["name"])
+        # Around the newest codes, unlisted products sit between listed ones
+        # (e.g. 麒麟特製 ビターオレンジサワー three codes below 氷結無糖 和梨), so
+        # tolerate a few more gaps there.
+        allowed = RECENT_MISSES if int(code) >= recent_floor else SCAN_MISSES
         for step in (1, -1):
             misses = 0
             for dist in range(1, SCAN_LIMIT + 1):
@@ -303,9 +351,35 @@ def collect(fetcher, log=print):
                     owner.setdefault(ncode, seed["brand"])
                     misses = 0
                 else:
+                    if other is not None:  # a different product; still a live page
+                        owner.setdefault(ncode, "")
                     misses += 1
-                    if misses > SCAN_MISSES:
+                    if misses > allowed:
                         break
+
+    # New products receive the next free internal codes, often weeks before the
+    # product list shows them. Walk forward from the newest live code.
+    live = [int(c) for c, info in pages.items() if info is not None and lo <= int(c) < hi]
+    forward = {"from": None, "checked": 0, "found": 0}
+    if live:
+        n = max(live)
+        forward["from"] = f"{n:06d}"
+        misses = 0
+        while misses < FORWARD_MISSES and forward["checked"] < FORWARD_LIMIT and n + 1 < hi:
+            n += 1
+            ncode = f"{n:06d}"
+            fresh = ncode not in pages
+            info = get(ncode)
+            forward["checked"] += fresh
+            if info is None:
+                misses += 1
+                continue
+            misses = 0
+            if ncode not in owner:
+                owner[ncode] = ""
+                forward["found"] += 1
+    log(f"kirin: forward walk from {forward['from']}: {forward['checked']} codes checked, "
+        f"{forward['found']} new live codes")
 
     records, seen = [], {}
     skipped = {"notCan": 0, "pack": 0, "nonAlcohol": 0, "noJan": 0}
@@ -338,8 +412,8 @@ def collect(fetcher, log=print):
         seen[record["janCode"]] = record
         records.append(record)
 
-    note = (f"{len(seeds)} seeds, {len(pages)} detail pages; skipped "
-            + ", ".join(f"{k}={v}" for k, v in skipped.items()))
+    note = (f"{len(seeds)} seeds, {len(pages)} detail pages, forward walk {forward['checked']} codes "
+            f"({forward['found']} new); skipped " + ", ".join(f"{k}={v}" for k, v in skipped.items()))
     log("kirin: " + note)
     return {"records": records, "pageErrors": page_errors, "note": note}
 
