@@ -1,10 +1,10 @@
 # HANDOFF — 缶ログ・酒ログ
 更新：2026-11-03 JST
 引渡し元：Claude Code／次の担当：未指定
-編集状態：照合の修正と辞書のカロリー補完を実装・確認済み（未コミット・未公開）
+編集状態：照合の修正と辞書のカロリー補完を公開済み（作業区切り）
 作業ルート：.（ローカル保存先は導入一覧を参照）
 Gitブランチ：claude/canned-alcohol-app-review-jo7w7y
-HEAD：4ddc9dcacfe727057a6402dca634688d616c9da0（origin と一致）。gh-pages：999d8a5
+HEAD：8a59659ef62be48ae547afd1a56f0de1a975752a（このHANDOFF更新の直前。origin と一致）。gh-pages：b9e0f9a（版 2026-11-03-match）
 
 ## 現在の作業
 - 保存済み商品と辞書の照合（beer-recognition.js の pool）を、JAN・商品名・容量・度数・revision で判断するよう修正。カロリー・分類の差では別候補にしない。保存済みのカロリーが空欄なら候補表示時だけ辞書の値で補う（保存データは書き換えない）。
@@ -12,14 +12,15 @@ HEAD：4ddc9dcacfe727057a6402dca634688d616c9da0（origin と一致）。gh-pages
 - 完了：上記修正。辞書更新スクリプトもカロリーは revision を変えずに更新・補完するよう変更。辞書のカロリー空欄48件（宝47・ピルスナーウルケル1）を補完。カロリー以外は不変。
 - 完了：版を 2026-11-03-match に上げた（5か所）。JS変更時に ?v= を変えないとブラウザが古いJSを使うことを確認したため。
 - 既存：辞書520件・版 2026-11-03-catalog は gh-pages 公開済み（877e567）。毎月のActionsは gh-pages の .github/workflows/update-catalog.yml（999d8a5）。
-- 未対応：ワークフローのPR作成条件が「追加＋仕様変更」のみで、カロリー更新だけではPRを作らない（gh-pages側の修正が必要）。
+- 完了：gh-pages に公開（b9e0f9a、Pages 反映確認済み）。ワークフローもカロリー更新だけでPRを作るよう修正。
 - 再検討可：サッポロ「麦とホップ」「GOLD STAR」は分類・カロリー差だけなので、この修正後は候補が2つにならず反映可能（以前は現状維持と決定）。
 - 制約：キリンは改訂番号付きURLでしか開けない商品ページが79件あり、新商品を取りこぼす可能性。iOS版の辞書は作り直しが必要。
 ## 次の具体的作業
-1. 差分確認後にコミット・push（ユーザー確認後）。公開（gh-pages）とワークフロー修正は別途確認。
-2. 12/1 の自動実行の結果を確認する。
+1. 12/1 の自動実行の結果（PRの有無・内容）を確認する。
+2. 必要ならサッポロ2商品の反映、キリン新商品の取りこぼし対策、サントリーの公式情報源の調査。
 ## 変更ファイル・未コミット変更
-- 未コミット：beer-save/beer-recognition.js, beer-catalog.js, index.html, log.html, sw.js, kanlog-maintenance.js, kanlog-release.json, tools/catalog/update_catalog.py, tools/catalog/README.md, docs/HANDOFF.md
+- コミット 8a59659：beer-recognition.js（照合）、beer-catalog.js（カロリー48件）、版上げ5か所、update_catalog.py、README。gh-pages b9e0f9a：同内容＋ワークフロー修正
+- 未コミット：なし（このHANDOFF更新はコミット済み）
 ## 検証
 - 今回：照合のテスト10件（カロリー・分類差は1候補、容量・度数・revision・商品名差は別候補、保存データ不変）を修正前NG3→修正後全OK。
 - 今回：実データで、旧辞書から保存した利用者が新辞書で読むと候補1件・カロリー補完・保存しても重複なし。520件の全JANで候補数が正しいことを確認。
