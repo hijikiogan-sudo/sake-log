@@ -41,3 +41,6 @@ html{scroll-padding-top:12px;scroll-padding-bottom:100px}
 .updateBadge[data-state=offline]{background:#eeeadd;color:var(--muted)}
 
 .backupCard h2{font-size:18px}.backupCard>.row{align-items:flex-start;flex-wrap:wrap}.backupBadge{font-size:11px;background:var(--soft);color:var(--green);padding:4px 10px;border-radius:20px}.backupBadge.due{background:#f8edce;color:#614d1c}.backupResult{margin-top:14px;font-size:12px;overflow-wrap:anywhere}
+/* "Save only" comes first so the keyboard's Enter never records a drink. */
+.secondaryAction{width:100%;margin-top:22px;background:transparent;color:var(--green)}#saveAndRecord{margin-top:10px}
+.barcodeAction{flex:1;min-height:48px;font-size:14px;color:var(--green)}
