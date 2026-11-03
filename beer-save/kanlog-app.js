@@ -46,7 +46,7 @@
   let historyLimit=HISTORY_PAGE,sessionLimit=SESSION_PAGE;
   // A second "+1" soon after the last can asks for one more tap, so a double
   // tap or pocket press does not silently record extra cans.
-  const RAPID_ADD_MS=60000,CONFIRM_WINDOW_MS=5000,CONFIRM_DELAY_MS=400;
+  const RAPID_ADD_MS=60000,CONFIRM_WINDOW_MS=5000,CONFIRM_DELAY_MS=400,IDLE_SESSION_MS=6*3600000;
   let confirmAddFrom=0,confirmAddUntil=0;
   function renderFeedback(){
     const slot=$(currentView==='home'?'homeFeedbackSlot':'globalFeedbackSlot');
@@ -217,8 +217,9 @@
     const day=B.currentDay(state),a=B.aggregate(state,k=>k===day),active=B.activeSession(state);
     const chosen=availableProducts().find(p=>p.id===selectedId);
     $('selectedName').innerHTML=chosen?nameHTML(chosen.productName):'いつものお酒を<br>選びましょう';fitName();
-    $('chooseProduct').textContent=chosen?'銘柄変更':'銘柄を選ぶ';
-    $('selectedFacts').textContent=chosen?chosen.volumeMl+'mL / '+chosen.alcoholPercent+'%':'まずは銘柄を登録してください';
+    const none=!availableProducts().length;
+    $('chooseProduct').textContent=chosen?'銘柄変更':none?'バーコードで登録':'銘柄を選ぶ';
+    $('selectedFacts').textContent=chosen?chosen.volumeMl+'mL / '+chosen.alcoholPercent+'%':none?'まずは缶のバーコードを読んでください':'まずは銘柄を選んでください';
     $('sessionBadge').textContent=active?'飲酒中':'飲酒前';
     $('sessionCount').hidden=!active;$('sessionCountNumber').textContent=active?B.sessionSummary(state,active.id).count:'0';
     $('startBtn').hidden=!!active;$('addBtn').hidden=!active;$('finishBtn').hidden=!active;
@@ -237,7 +238,16 @@
     $('sessionSummary').hidden=!latest;
     $('sessionSummary').innerHTML=latest?sessionHTML(latest):'';
     $('todayTimeline').innerHTML=timeline(state.drinks.filter(d=>B.recordDay(d)===day));
-    $('sessionReminder').hidden=!(active&&(B.dayKey(active.startedAt)!==B.dayKey(now())||Date.now()-Date.parse(active.startedAt)>86400000));
+    // A forgotten "飲酒終わり" skews the estimate and the next day's log, so ask once no can
+    // has been added for a while, not only after the day changes.
+    const lastAt=last?Date.parse(last.startedAt):active?Date.parse(active.startedAt):0;
+    const overnight=active&&(B.dayKey(active.startedAt)!==B.dayKey(now())||Date.now()-Date.parse(active.startedAt)>86400000);
+    const idle=active&&Date.now()-lastAt>=IDLE_SESSION_MS;
+    $('sessionReminder').hidden=!(overnight||idle);
+    if(overnight||idle){
+      $('sessionReminderText').textContent=overnight?'前回の飲酒が終了未記録です。':'最後の1本から'+Math.floor((Date.now()-lastAt)/3600000)+'時間たちました。飲酒は終わりましたか？';
+      $('finishAtLast').textContent='最後の1本の時刻（'+stamp(new Date(lastAt).toISOString(),overnight)+'）で終える';
+    }
     renderFeedback();
   }
   function renderHistory(){
@@ -325,6 +335,11 @@
   function openProduct(p={},editing=false,message=''){
     ensureWrite();close('productPicker');editingProductId=editing?p.id:null;
     fillProduct(p);$('productTitle').textContent=editing?'お酒の商品情報を編集':'お酒を登録';
+    // Registering usually happens with a can in hand, so offer to record it in the same step.
+    const active=!!B.activeSession(state);
+    $('saveAndRecord').hidden=editing;$('saveAndRecord').textContent=active?'保存して1本追加':'保存して飲酒スタート';
+    $('saveOnly').textContent=editing?'商品情報を保存':'保存だけする';$('saveOnly').classList.toggle('primary',editing);$('saveOnly').classList.toggle('secondaryAction',!editing);
+    $('productLead').textContent=editing?'過去の飲酒記録は変更しません。':active?'保存して、そのまま1本追加できます。':'保存して、そのまま1本目を記録できます。';
     $('productError').hidden=true;$('barcodeNote').textContent=message;$('barcodeChoices').replaceChildren();open('productDialog');
   }
   function lookupJan(){
@@ -388,7 +403,7 @@
   }
   function quick(start){
     if(Date.now()<busyUntil)return;
-    ensureWrite();if(!selectedId){open('productPicker');return;}
+    ensureWrite();if(!selectedId){$('chooseProduct').click();return;} // picker, or the scanner when nothing is registered
     if(!start){
       const active=B.activeSession(state),t=Date.now();
       const last=active&&state.drinks.filter(d=>d.sessionId===active.id).reduce((a,d)=>!a||d.startedAt>a.startedAt?d:a,null);
@@ -438,10 +453,15 @@
   $('dismissFeedback').onclick=()=>{noticeDismissed=true;renderFeedback();};
   $('undoBtn').onclick=()=>guard(()=>{if(!undo)return;if(B.serialize(state)!==undo.after)throw Error('記録が変わったため取り消せません。履歴から修正してください');const before=undo.before;busyUntil=0;commit(before,'直前の操作を取り消しました。');});
   $('reviewActive').onclick=()=>guard(()=>openSession(B.activeSession(state)?.id));
-  for(const id of ['chooseProduct','allProducts'])$(id).onclick=()=>guard(()=>{ensureWrite();renderPicker();open('productPicker');});
+  $('finishAtLast').onclick=()=>guard(()=>{
+    const s=B.activeSession(state);if(!s)return;
+    const last=state.drinks.filter(d=>d.sessionId===s.id).reduce((a,d)=>!a||d.startedAt>a.startedAt?d:a,null);
+    commit(B.finish(state,last?last.startedAt:s.startedAt,s.id),'最後の1本の時刻で飲酒の終了を記録しました。','飲酒を終了しました');
+  });
+  $('allProducts').onclick=()=>guard(()=>{ensureWrite();renderPicker();open('productPicker');});
   for(const id of ['manualProduct','pickerManual','newProduct'])$(id).onclick=()=>guard(()=>openProduct());
   $('lookupJan').onclick=()=>guard(lookupJan,'productError');
-  $('productForm').onsubmit=event=>{event.preventDefault();guard(()=>{
+  $('productForm').onsubmit=event=>{event.preventDefault();const record=event.submitter?.id==='saveAndRecord';guard(()=>{
     const input={...productBase};
     for(const k of ['janCode','productName','manufacturer','category','revision'])input[k]=$(k).value;
     input.volumeMl=Number($('volumeMl').value);input.alcoholPercent=Number($('alcoholPercent').value);input.caloriesKcal=optional('caloriesKcal');input.referencePriceYen=optional('referencePriceYen');
@@ -449,6 +469,8 @@
     const target=next.products.find(p=>!p.archived&&B.fingerprint(p)===B.fingerprint(B.product(input))).id;
     // Select only after a successful storage write, so failed saves cannot leak UI state.
     commit(next,'商品を保存しました。飲酒スタートで1本目を記録できます。');selectedId=target;renderHome();close('productDialog');
+    // Enter submits with the first button (save only), so only an explicit tap records a drink.
+    if(record)guard(()=>quick(!B.activeSession(state)));
   },'productError');};
   $('editSavedProduct').onchange=()=>{const p=state.products.find(p=>p.id===$('editSavedProduct').value);editSnapshot={...(p||state.drinks.find(d=>d.id===editingDrinkId).snapshot)};fillEditFields(editSnapshot);};
   $('editForm').onsubmit=event=>{event.preventDefault();guard(()=>{
@@ -532,6 +554,8 @@
     render();
     const barcode=window.KanBarcode.create({getState:()=>state,catalog:cat?.products||[],onReview:(p,message)=>guard(()=>openProduct(p,false,message))});
     for(const id of ['beerLiveButton','pickerBarcode'])$(id).onclick=()=>guard(()=>{ensureWrite();close('productPicker');barcode.start();});
+    // With nothing registered yet, an empty picker is a dead end: go straight to the scanner.
+    $('chooseProduct').onclick=()=>guard(()=>{ensureWrite();if(!availableProducts().length){barcode.start();return;}renderPicker();open('productPicker');});
   });
   if(!state){blocked=true;for(const el of document.querySelectorAll('.write'))el.disabled=true;switchView('settings');}
   window.addEventListener('storage',event=>{if(!event.key||[S?.KEY,S?.OLD_KEY].includes(event.key)){blocked=true;render();note('別の画面で記録が更新されました。再読み込みしてから操作してください。保存は停止しています。',true);}});
