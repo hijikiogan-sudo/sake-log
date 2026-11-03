@@ -6,11 +6,13 @@ Usage (from the repository root):
     python3 tools/catalog/update_catalog.py --dry-run    # report only
     python3 tools/catalog/update_catalog.py --only asahi,kirin
 
-Merge rules (the app compares saved products with catalog entries field by
-field, including `revision`, so unchanged entries must stay byte-identical):
-- An existing JAN with the same volume / alcohol / calories is left as is
-  (a value that was blank stays blank; the run only counts those).
-- An existing JAN whose facts changed is updated and gets a new revision.
+Merge rules (the app treats a saved product as the same catalog entry while
+name, volume, alcohol and `revision` match, so those only change on purpose):
+- An existing JAN with the same volume / alcohol is left as is.
+- An existing JAN whose volume or alcohol changed is a new formulation: the
+  values are updated and it gets a new revision.
+- Calories are descriptive: a blank is filled and a changed value is updated,
+  without touching the revision.
 - A new JAN is appended.
 - Entries that were not found this time are kept (discontinued cans still
   get scanned), and sources that could not be read keep their old entries.
@@ -47,7 +49,9 @@ MANUAL = {
     "sangaria": {"manufacturer": "サンガリア", "status": "manual",
                  "reason": "JAN is in image-based PDF; automatic addition disabled"},
 }
-FACTS = ("volumeMl", "alcoholPercent", "caloriesKcal")
+SPEC = ("volumeMl", "alcoholPercent")  # a change here is a new formulation
+DESCRIPTIVE = ("caloriesKcal",)  # corrected in place
+FACTS = SPEC + DESCRIPTIVE
 
 
 def load_catalog(path=CATALOG):
@@ -93,7 +97,7 @@ def merge(catalog, results, today):
     products = catalog["products"]
     by_jan = {p["janCode"]: p for p in products}
     revision = f"公式情報確認 {today}"
-    report = {"added": [], "changed": [], "unchanged": 0, "fillable": 0, "notFound": []}
+    report = {"added": [], "changed": [], "updated": [], "unchanged": 0, "notFound": []}
     for name, result in results.items():
         seen = set()
         for rec in result["records"]:
@@ -110,20 +114,19 @@ def merge(catalog, results, today):
                 continue
             if old["manufacturer"] != rec["manufacturer"]:
                 continue
-            # A value missing from the old entry is not filled in: any field change makes
-            # users' saved copies count as a different product, which a backfill isn't worth.
-            if any(old.get(k) is None and rec.get(k) is not None for k in FACTS):
-                report["fillable"] += 1
-            diffs = {k: (old.get(k), rec.get(k)) for k in FACTS
-                     if old.get(k) is not None and not same(old.get(k), rec.get(k))}
+            diffs = {k: (old.get(k), rec.get(k)) for k in FACTS if not same(old.get(k), rec.get(k))}
             if not diffs:
                 report["unchanged"] += 1
                 continue
             for key, (_, value) in diffs.items():
                 old[key] = value
-            old["revision"] = revision + ("・製造終了掲載" if rec.get("discontinued") else "")
-            old["source"] = rec["source"]
-            report["changed"].append({"janCode": jan, "productName": old["productName"], "diffs": diffs})
+            item = {"janCode": jan, "productName": old["productName"], "diffs": diffs}
+            if any(k in SPEC for k in diffs):
+                old["revision"] = revision + ("・製造終了掲載" if rec.get("discontinued") else "")
+                old["source"] = rec["source"]
+                report["changed"].append(item)
+            else:
+                report["updated"].append(item)
         if result["status"] in ("ok", "partial") and not result["pageErrors"]:
             report["notFound"] += [p for p in products if p["manufacturer"] == result["manufacturer"]
                                    and p["janCode"] not in seen]
@@ -183,7 +186,8 @@ STATUS_JA = {"ok": "取得できた", "partial": "一部取得できず", "empty
 def summary_markdown(catalog, report, before):
     lines = [f"商品辞書を公式サイトから集め直しました（{catalog['autoUpdate']['checkedOn']}）。", "",
              f"- 件数：{before} → {len(catalog['products'])}",
-             f"- 追加：{len(report['added'])}件 / 値の変更：{len(report['changed'])}件 / 変更なし：{report['unchanged']}件",
+             f"- 追加：{len(report['added'])}件 / 仕様変更：{len(report['changed'])}件 / "
+             f"カロリーの更新：{len(report['updated'])}件 / 変更なし：{report['unchanged']}件",
              f"- 今回見つからなかった既存商品（辞書には残す）：{len(report['notFound'])}件", ""]
     if report["added"]:
         lines += ["## 追加", "", "| JAN | メーカー | 商品名 | 容量 | 度数 | kcal | 分類 |", "|---|---|---|---|---|---|---|"]
@@ -192,9 +196,14 @@ def summary_markdown(catalog, report, before):
                   for e in report["added"]]
         lines.append("")
     if report["changed"]:
-        lines += ["## 値の変更（保存済みの人には新旧2つの候補が出ます）", ""]
+        lines += ["## 仕様変更（容量・度数。保存済みの人には新旧2つの候補が出ます）", ""]
         lines += [f"- {c['janCode']} {c['productName']}：" + "、".join(f"{k} {a} → {b}" for k, (a, b) in c["diffs"].items())
                   for c in report["changed"]]
+        lines.append("")
+    if report["updated"]:
+        lines += ["## カロリーの更新（revision は変えない）", ""]
+        lines += [f"- {c['janCode']} {c['productName']}：{c['diffs']['caloriesKcal'][0]} → {c['diffs']['caloriesKcal'][1]}"
+                  for c in report["updated"]]
         lines.append("")
     lines += ["## メーカーごとの状況", ""]
     for info in catalog["autoUpdate"]["sources"].values():
@@ -224,25 +233,25 @@ def main():
     report = merge(catalog, results, today)
 
     catalog["autoUpdate"] = auto_update(catalog.get("autoUpdate"), results, today)
-    if report["added"] or report["changed"]:
+    if report["added"] or report["changed"] or report["updated"]:
         catalog["verifiedOn"] = today
     digest = hashlib.sha256(json.dumps(catalog["products"], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
     catalog["version"] = f"catalog-auto-{catalog['verifiedOn'].replace('-', '')}-{digest[:12]}"
 
     print()
     print(f"products: {before} -> {len(catalog['products'])}")
-    print(f"added: {len(report['added'])}, changed: {len(report['changed'])}, unchanged: {report['unchanged']}, "
-          f"kept but not found this run: {len(report['notFound'])}, "
-          f"left blank although the site now lists a value: {report['fillable']}")
+    print(f"added: {len(report['added'])}, changed (new revision): {len(report['changed'])}, "
+          f"calories updated: {len(report['updated'])}, unchanged: {report['unchanged']}, "
+          f"kept but not found this run: {len(report['notFound'])}")
     for e in report["added"]:
         print(f"  + {e['janCode']} {e['manufacturer']} {e['productName']} {e['volumeMl']}ml {e['alcoholPercent']}% "
               f"{e['caloriesKcal']}kcal [{e['category']}]")
-    for c in report["changed"]:
+    for c in report["changed"] + report["updated"]:
         print(f"  ~ {c['janCode']} {c['productName']} " + ", ".join(f"{k}: {a} -> {b}" for k, (a, b) in c["diffs"].items()))
     if args.report:
         Path(args.report).write_text(json.dumps({
             "date": today, "sources": catalog["autoUpdate"]["sources"],
-            "added": report["added"], "changed": report["changed"],
+            "added": report["added"], "changed": report["changed"], "updated": report["updated"],
             "notFound": [{"janCode": p["janCode"], "productName": p["productName"]} for p in report["notFound"]],
         }, ensure_ascii=False, indent=1), encoding="utf-8")
     if args.summary:
