@@ -7,15 +7,15 @@
 <title>缶ログ｜缶のお酒を、かんたん記録。</title>
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./kanlog.css?v=kanlog-20261103-ux">
-<script defer src="./beer-catalog.js?v=kanlog-20261103-ux"></script>
-<script defer src="./beer-core.js?v=kanlog-20261103-ux"></script>
-<script defer src="./beer-store.js?v=kanlog-20261103-ux"></script>
-<script defer src="./beer-recognition.js?v=kanlog-20261103-ux"></script>
-<script defer src="./beer-live-barcode.js?v=kanlog-20261103-ux"></script>
-<script defer src="./beer-camera-ui.js?v=kanlog-20261103-ux"></script>
-<script defer src="./kanlog-maintenance.js?v=kanlog-20261103-ux"></script>
-<script defer src="./kanlog-app.js?v=kanlog-20261103-ux"></script>
+<link rel="stylesheet" href="./kanlog.css?v=kanlog-20261105-trend">
+<script defer src="./beer-catalog.js?v=kanlog-20261105-trend"></script>
+<script defer src="./beer-core.js?v=kanlog-20261105-trend"></script>
+<script defer src="./beer-store.js?v=kanlog-20261105-trend"></script>
+<script defer src="./beer-recognition.js?v=kanlog-20261105-trend"></script>
+<script defer src="./beer-live-barcode.js?v=kanlog-20261105-trend"></script>
+<script defer src="./beer-camera-ui.js?v=kanlog-20261105-trend"></script>
+<script defer src="./kanlog-maintenance.js?v=kanlog-20261105-trend"></script>
+<script defer src="./kanlog-app.js?v=kanlog-20261105-trend"></script>
 </head>
 <body>
 <main class="app">
@@ -55,6 +55,7 @@
 <h2 class="pageTitle">集計</h2><p class="hint">飲んだお酒を、少し振り返る。</p>
 <label for="period">表示期間</label><select id="period"><option value="day">今日</option><option value="week">今週（月曜から）</option><option value="month" selected>今月</option><option value="year">今年</option><option value="all">全期間</option></select>
 <p id="periodLabel" class="hint" style="margin-top:10px"></p><div id="analysisMetrics" class="metricGrid"></div>
+<div id="trendCard" class="card"><h2>推移</h2><div class="trendMetrics" role="group" aria-label="グラフの表示内容"><button type="button" data-trend-metric="count" aria-pressed="true">本数</button><button type="button" data-trend-metric="alcohol" aria-pressed="false">純アルコール</button><button type="button" data-trend-metric="spending" aria-pressed="false">金額</button></div><p id="trendReadout" class="trendReadout" role="status" aria-live="polite"></p><div id="trendChart"></div><p id="trendNote" class="hint trendNote"></p></div>
 <div class="card"><h2>よく飲んだ銘柄</h2><div id="rankings"></div></div>
 <details class="card"><summary>日別の記録・カレンダー</summary><div class="row"><button id="prevMonth" aria-label="前の月">‹</button><b id="monthLabel"></b><button id="nextMonth" aria-label="次の月">›</button></div><div class="calendar" id="calendar"></div><div id="calendarDetail"></div></details>
 <details id="savingsCard" class="card"><summary>以前の節約管理</summary><p class="hint">以前の設定と本数から計算する参考値です。実際に消費したお酒の金額とは異なります。</p><div id="savings"></div></details>

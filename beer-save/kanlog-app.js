@@ -40,7 +40,7 @@
   let bulkSelected=new Set();
   let duplicateCacheKey=null,duplicateCache=[];
   let duplicatePair=null,noticeDismissed=false,noticeTimer=null;
-  let imported=null,undo=null,blocked=false,busyUntil=0,currentView='home',cursor=null,selectedDay=null;
+  let imported=null,undo=null,blocked=false,busyUntil=0,currentView='home',cursor=null,selectedDay=null,trendMetric='count',trendPicked=null,trendData=null;
   // Years of history render in pages so startup and saving stay quick.
   const HISTORY_PAGE=30,SESSION_PAGE=20;
   let historyLimit=HISTORY_PAGE,sessionLimit=SESSION_PAGE;
@@ -265,18 +265,81 @@
   }
   function renderAnalysis(){
     const day=B.currentDay(state),period=$('period').value;
-    const monday=B.dayKey(new Date(Date.parse(day+'T12:00:00+09:00')-((new Date(day+'T12:00:00+09:00').getUTCDay()+6)%7)*86400000).toISOString());
+    const monday=B.weekStart(day);
     const predicate=k=>period==='all'||(period==='day'?k===day:period==='week'?k>=monday&&k<=day:k.startsWith(day.slice(0,period==='month'?7:4)));
     const a=B.aggregate(state,predicate),days=new Set(state.drinks.map(B.recordDay).filter(predicate));
     for(const [key,count] of Object.entries(state.countOnlyRecords))if(predicate(key)&&count>0)days.add(key);
     const items=[['飲んだ本数',a.count,'本'],['純アルコール',a.alcohol.unknown===a.count&&a.count?'—':decimal(a.alcohol.value),'g'],['飲酒日数',days.size,'日'],['消費したお酒の金額',a.spending.unknown===a.count&&a.count?'—':money(a.spending.value),'']];
     $('analysisMetrics').innerHTML=items.map(([label,value,unit],i)=>`<div class="metric"><small>${label}</small><strong style="font-size:${i===3?'25':'32'}px">${value}<span>${unit}</span></strong><small>${i===1&&a.alcohol.unknown?'未確認 '+a.alcohol.unknown+'本を除く':i===3&&a.spending.unknown?'価格未入力 '+a.spending.unknown+'本を除く':i===2?'1本以上記録した日':'記録した分の合計'}</small></div>`).join('');
+    renderTrend(a,period,day);
     $('periodLabel').textContent=period==='week'?monday+' 〜 '+day:period==='all'?'全期間の記録':period==='day'?day:day.slice(0,period==='month'?7:4);
     const ranks=new Map();
     for(const d of state.drinks.filter(d=>predicate(B.recordDay(d)))){const key=B.fingerprint(d.snapshot);if(!ranks.has(key))ranks.set(key,{p:d.snapshot,count:0});ranks.get(key).count++;}
     $('rankings').innerHTML=ranks.size?[...ranks.values()].sort((a,b)=>b.count-a.count).slice(0,10).map(x=>`<div class="productRow"><div><strong>${nameHTML(x.p.productName)}</strong><small>${x.p.volumeMl}mL / ${x.p.alcoholPercent}%</small></div><b>${x.count}本</b></div>`).join(''):'<p class="hint">銘柄の記録が増えると表示します。</p>';
     const all=B.aggregate(state);$('savings').textContent='累計 '+money(all.savings)+' / 基準 '+state.settings.baseline+'本・目標 '+state.settings.target+'本 / 基準価格 '+money(state.settings.price);
     renderCalendar();
+  }
+  const TREND_METRICS={count:{unit:'本',show:n=>n+'本',field:b=>b.count,empty:''},alcohol:{unit:'g',show:n=>decimal(n)+'g',field:b=>b.alcohol.value,empty:'純アルコールの分かる記録がまだありません。'},spending:{unit:'円',show:money,field:b=>b.spending.value,empty:'価格を入力した記録がまだありません。'}};
+  function trendLabel(key,unit){
+    const [y,m,d]=key.split('-').map(Number);
+    if(unit==='year')return y+'年';
+    if(unit==='month')return y+'年'+m+'月';
+    return m+'月'+d+'日（'+'日月火水木金土'[new Date(Date.UTC(y,m-1,d)).getUTCDay()]+'）';
+  }
+  function trendTick(key,i,t,period){
+    const [y,m,d]=key.split('-').map(Number);
+    if(t.unit==='year')return y+'年';
+    if(t.unit==='day'){if(period==='week')return '月火水木金土日'[i];return d===1||d%5===0&&d<31?String(d):'';}
+    if(t.buckets.length<=12)return m+'月';
+    return m===1||(i===0&&m<9)?y+'年':'';
+  }
+  // Round the axis up to 1/2/5×10ⁿ steps, at most four gridlines above the baseline.
+  function trendScale(max,whole){
+    const power=10**Math.floor(Math.log10(max/4));
+    let step=[1,2,5,10].map(x=>x*power).find(x=>max/x<=4);
+    if(whole)step=Math.max(1,Math.ceil(step));
+    return {step,top:Math.ceil(max/step)*step};
+  }
+  function trendAxis(n){return n>=10000?Number((n/10000).toFixed(1)).toLocaleString('ja-JP')+'万':Number(n.toFixed(1)).toLocaleString('ja-JP');}
+  function trendText(b,t,metric){
+    const spec=TREND_METRICS[metric],unknown=metric==='count'?0:b[metric].unknown;
+    return trendLabel(b.key,t.unit)+' · '+spec.show(spec.field(b))+(unknown?'（'+(metric==='spending'?'価格未入力':'未確認')+unknown+'本を除く）':'');
+  }
+  function renderTrend(a,period,day){
+    $('trendCard').hidden=period==='day';
+    if(period==='day')return;
+    for(const b of document.querySelectorAll('[data-trend-metric]'))b.setAttribute('aria-pressed',String(b.dataset.trendMetric===trendMetric));
+    const spec=TREND_METRICS[trendMetric],t=B.trend(state,period,day),values=t.buckets.map(spec.field),max=Math.max(0,...values);
+    trendData={t,metric:trendMetric};
+    const unknown=trendMetric==='count'?0:a[trendMetric].unknown;
+    $('trendNote').textContent=max&&unknown?(trendMetric==='spending'?'価格未入力':'未確認')+' '+unknown+'本は含みません。':'';
+    if(!max){
+      $('trendChart').innerHTML='<p class="hint trendEmpty">'+(a.count?spec.empty:'この期間の記録はまだありません。')+'</p>';
+      $('trendReadout').textContent='';trendPicked=null;return;
+    }
+    const {step,top}=trendScale(max,trendMetric==='count');
+    let grid='';for(let v=0;v<=top+step/1000;v+=step)grid+=`<div class="trendLine" style="bottom:${v/top*100}%"><span>${trendAxis(v)}</span></div>`;
+    const cols=t.buckets.map((b,i)=>{
+      if(b.future)return '<span class="trendCol"></span>';
+      const v=values[i],h=v/top*100;
+      return `<button type="button" class="trendCol" data-trend="${esc(b.key)}" aria-label="${esc(trendText(b,t,trendMetric))}"><i style="height:${v?`max(2px,${h}%)`:'0'}"></i></button>`;
+    }).join('');
+    const ticks=t.buckets.map((b,i)=>`<span>${esc(trendTick(b.key,i,t,period))}</span>`).join('');
+    const css=`grid-template-columns:repeat(${t.buckets.length},minmax(0,1fr))`;
+    $('trendChart').innerHTML=`<div class="trendPlot">${grid}<div class="trendBars" style="${css}">${cols}</div></div><div class="trendTicks" style="${css}">${ticks}</div>`;
+    const keep=t.buckets.some(b=>b.key===trendPicked&&!b.future)?trendPicked:null;
+    pickTrend(keep);
+  }
+  // Shows one bar's value above the chart; with no selection, the highest bar (latest on ties).
+  function pickTrend(key){
+    if(!trendData)return;
+    const {t,metric}=trendData,spec=TREND_METRICS[metric];
+    trendPicked=key;
+    for(const c of $('trendChart').querySelectorAll('[data-trend]'))c.classList.toggle('picked',c.dataset.trend===key);
+    const bucket=key&&t.buckets.find(b=>b.key===key);
+    if(bucket){$('trendReadout').textContent=trendText(bucket,t,metric);return;}
+    const peak=t.buckets.reduce((best,b)=>spec.field(b)>=spec.field(best)?b:best);
+    $('trendReadout').textContent='いちばん多い：'+trendText(peak,t,metric);
   }
   function renderCalendar(){
     const [y,m]=cursor.split('-').map(Number),first=new Date(Date.UTC(y,m-1,1)).getUTCDay(),last=new Date(Date.UTC(y,m,0)).getUTCDate();
@@ -436,6 +499,8 @@
       if(button.dataset.more==='history'){historyLimit+=HISTORY_PAGE;renderHistory();}
       if(button.dataset.more==='sessions'){sessionLimit+=SESSION_PAGE;renderHistory();}
       if(button.dataset.day){selectedDay=button.dataset.day;renderCalendar();}
+      if(button.dataset.trend)pickTrend(button.dataset.trend);
+      if(button.dataset.trendMetric){trendMetric=button.dataset.trendMetric;renderAnalysis();}
       if(button.dataset.count){$('countDay').value=button.dataset.count;$('dayCount').value=B.aggregate(state,k=>k===button.dataset.count).count;$('countForm').closest('details').open=true;$('countForm').scrollIntoView({block:'center'});}
     });
   });
@@ -509,7 +574,11 @@
   $('estimateForm').onsubmit=event=>{event.preventDefault();guard(()=>{const next=structuredClone(state);next.settings.metabolismGramsPerHour=Number($('metabolismRate').value);commit(B.canonical(next),'推定の計算条件を保存しました。');});};
   $('dayBoundaryForm').onsubmit=event=>{event.preventDefault();guard(()=>{const next=structuredClone(state);next.settings.dayStartHour=Number($('dayStartHour').value);commit(B.canonical(next),'これからの集計日の区切りを変更しました。過去の記録日は保持します。');});};
   $('settingsForm').onsubmit=event=>{event.preventDefault();guard(()=>{const next=structuredClone(state);for(const k of ['baseline','target','price'])next.settings[k]=Number($(k).value);const valid=B.canonical(next);if(!confirm('以前の節約額も新しい設定で再計算されます。変更しますか？'))return;commit(valid,'節約の設定を保存しました。');});};
-  $('period').onchange=()=>guard(renderAnalysis);
+  $('period').onchange=()=>guard(()=>{trendPicked=null;renderAnalysis();});
+  // Mouse and keyboard preview the same readout a tap sets. Taps are handled by the shared click listener.
+  const previewTrend=event=>{const bar=event.target.closest&&event.target.closest('[data-trend]');if(bar)pickTrend(bar.dataset.trend);};
+  $('trendChart').addEventListener('pointerover',event=>{if(event.pointerType==='mouse')previewTrend(event);});
+  $('trendChart').addEventListener('focusin',previewTrend);
   for(const [id,delta] of [['prevMonth',-1],['nextMonth',1]])$(id).onclick=()=>guard(()=>{const [y,m]=cursor.split('-').map(Number);cursor=new Date(Date.UTC(y,m-1+delta,1)).toISOString().slice(0,7);selectedDay=null;renderCalendar();});
   $('checkUpdates').onclick=()=>checkUpdates(true);
   $('applyUpdate').onclick=applyUpdate;

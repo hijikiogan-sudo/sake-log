@@ -176,6 +176,32 @@
     const savings=allKeys.reduce((s,key)=>s+Math.max(0,state.settings.baseline-dayCount(key))*state.settings.price,0);
     return {count,unknownDetails:unknown,alcohol,calories,spending,beerEquivalent:alcohol.value/14,savings,recordedDays:allKeys.length};
   }
+  function weekStart(day){const d=new Date(day+'T12:00:00+09:00');return dayKey(new Date(d.getTime()-((d.getUTCDay()+6)%7)*86400000).toISOString());}
+  // Buckets for the trend chart. Totals come from aggregate(), so each bar agrees with the metric tiles.
+  function trend(state,period,today){
+    const shift=(key,n)=>new Date(Date.parse(key+'T00:00:00Z')+n*86400000).toISOString().slice(0,10);
+    const pad=n=>String(n).padStart(2,'0'),[y,m]=today.split('-').map(Number);
+    let unit='day',keys=[];
+    if(period==='week'){const monday=weekStart(today);keys=Array.from({length:7},(_,i)=>shift(monday,i));}
+    else if(period==='month'){const last=new Date(Date.UTC(y,m,0)).getUTCDate();keys=Array.from({length:last},(_,i)=>today.slice(0,8)+pad(i+1));}
+    else if(period==='year'){unit='month';keys=Array.from({length:12},(_,i)=>y+'-'+pad(i+1));}
+    else if(period==='all'){
+      const known=[...state.drinks.map(recordDay),...Object.keys(state.countOnlyRecords).filter(k=>state.countOnlyRecords[k]>0)].sort();
+      unit='month';
+      if(known.length){
+        const end=[known[known.length-1],today].sort()[1];
+        let cy=Number(known[0].slice(0,4)),cm=Number(known[0].slice(5,7));
+        const ey=Number(end.slice(0,4)),em=Number(end.slice(5,7));
+        while(cy<ey||(cy===ey&&cm<=em)){keys.push(cy+'-'+pad(cm));if(++cm>12){cm=1;cy++;}}
+        if(keys.length>36){unit='year';keys=[...new Set(keys.map(k=>k.slice(0,4)))];}
+      }
+    }
+    const buckets=keys.map(key=>{
+      const a=aggregate(state,k=>k.startsWith(key));
+      return {key,future:key>today.slice(0,key.length)&&!a.recordedDays,count:a.count,alcohol:a.alcohol,spending:a.spending};
+    });
+    return {unit,buckets};
+  }
   function setDailyTotal(state,key,total) {
     validDay(key);number(total,'日別本数',0,10000);if(!Number.isInteger(total))fail('本数は整数で指定してください');
     const next=canonical(state),details=next.drinks.filter(d=>recordDay(d)===key),additional=details.filter(d=>d.allocation==='additional').length,included=details.length-additional;
@@ -414,5 +440,5 @@
       }
     };
   }
-  return {DEFAULTS,normalizeJan,empty,encode,migrate,canonical,product,fingerprint,pure,dayKey,recordDay,currentDay,activeSession,sessionSummary,estimate,saveProduct,archiveProduct,canConsolidateProducts,duplicateProductCandidates,consolidateProducts,recentProducts,addFromProduct,editSession,editDrink,setDrinkPrices,addPast,validDay,add,aggregate,setDailyTotal,remove,finish,decode,merge,serialize,csv,repository};
+  return {DEFAULTS,normalizeJan,empty,encode,migrate,canonical,product,fingerprint,pure,dayKey,recordDay,currentDay,activeSession,sessionSummary,estimate,saveProduct,archiveProduct,canConsolidateProducts,duplicateProductCandidates,consolidateProducts,recentProducts,addFromProduct,editSession,editDrink,setDrinkPrices,addPast,validDay,add,aggregate,weekStart,trend,setDailyTotal,remove,finish,decode,merge,serialize,csv,repository};
 });
