@@ -12,14 +12,19 @@ Web版のファイルは複製せず `../beer-save` を参照しているので�
 1. このリポジトリを取得して `claude/canned-alcohol-app-review-jo7w7y` ブランチに切り替える
 2. `ios/KanLog.xcodeproj` をダブルクリックしてXcodeで開く
 3. 左の一覧で一番上の **KanLog** → TARGETS の **KanLog** → **Signing & Capabilities** を開く
-   - **Team**：自分のApple IDを選ぶ（なければ「Add an Account…」で追加）
-   - **Bundle Identifier**：`com.example.kanlog` を自分だけの名前に変える（例：`com.hijikiogan.kanlog`）
+   - **Team**：`A56C7H79Z6` が設定済み（Xcodeにこのチームのアカウントが必要）
+   - **Bundle Identifier**：`com.hijikilabo.kanlog`（App Store Connect に登録済み。変更しない）
 4. iPhoneをMacにつなぎ、Xcode上部の実行先で自分のiPhoneを選ぶ
 5. ▶（Run）を押す
 
 初回だけ、iPhone側で次の設定が必要です。
 - **デベロッパモード**：設定 → プライバシーとセキュリティ → デベロッパモード をオンにして再起動
 - **開発元の信頼**（無料のApple IDの場合）：設定 → 一般 → VPNとデバイス管理 → 自分のApple ID → 信頼
+
+## App Store Connect へのアップロード
+Bundle ID は `com.hijikilabo.kanlog`、アプリ記録は作成済みです。バージョン 1.0 のビルド 1 は 2026-11-05 にアップロード済みです（審査には未申請）。
+次にアップロードするときは、`CURRENT_PROJECT_VERSION`（ビルド番号）を必ず上げてください。同じ番号は受け付けられません。
+Web版の変更はアプリに自動では届きません。アーカイブし直すと、その時点の `beer-save/` が入ります。
 
 ## アプリ側で補っていること
 | Web版の機能 | アプリでの動き |
